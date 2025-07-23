@@ -1,387 +1,297 @@
-"use client";
+"use client"
 
-// Importações de React e bibliotecas
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Inter } from 'next/font/google';
-import { cn } from "@/lib/utils"; // Assumindo que seu utils.ts está em lib/
+import React, { useState, useEffect, useMemo, useCallback } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 
-// Importações de Componentes (shadcn/ui, etc.)
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Progress } from "@/components/ui/progress";
-import { Toaster, toast } from "sonner";
-import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
+// UI Components
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
-// Importações de Ícones (lucide-react)
-import {
-  ShoppingCart, Plus, Trash2, Share2, Settings, Mic, Sun, Moon,
-  ChevronDown, ChevronUp, History, Users, BarChart3, Package,
-  DollarSign, Target, Copy, Check, X, RefreshCw, Store, Percent,
-  ArrowUpDown, Zap, Search, LayoutDashboard, Menu, Wallet
-} from "lucide-react";
+// Icons
+import { ShoppingCart, Plus, Trash2, Search, X, LayoutGrid, List, PiggyBank, Target, Flame, Snowflake, Bot } from "lucide-react"
 
-const inter = Inter({ subsets: ["latin"] });
-
-// Interfaces (mantidas no mesmo arquivo conforme solicitado)
+// Types
 interface Produto {
   id: number;
   nome: string;
   quantidade: number;
   valor: number;
-  total: number;
   categoria: string;
-  adicionadoEm: Date;
 }
 
-interface ListaCompras {
-  id: string;
+interface Categoria {
   nome: string;
-  produtos: Produto[];
-  criadaEm: Date;
-  totalGasto: number;
-  orcamento: number;
+  emoji: string;
+  items: Produto[];
 }
 
-// Constantes (mantidas no mesmo arquivo)
-const CATEGORIAS = {
-  "Hortifrúti": "🍎",
-  "Laticínios": "🥛",
-  "Proteínas": "🥩",
-  "Cereais & Grãos": "🌾",
-  "Padaria": "🍞",
-  "Bebidas": "☕",
-  "Limpeza": "🧽",
-  "Outros": "🛒"
+// Mock Data & Helpers
+const CATEGORIAS_MAP: Record<string, string> = {
+  Hortifruti: "🍎",
+  Laticínios: "🧀",
+  Carnes: "🥩",
+  Padaria: "🍞",
+  Bebidas: "🥤",
+  Limpeza: "🧼",
+  Outros: "🛒",
 };
 
-// Componente Principal
-export default function ComprinhasAppUIUX() {
-  // =================================================================================
-  // ESTADO E LÓGICA
-  // =================================================================================
-  const [listaAtual, setListaAtual] = useState<ListaCompras>({
-    id: Date.now().toString(),
-    nome: "Minhas Compras",
-    produtos: [],
-    criadaEm: new Date(),
-    totalGasto: 0,
-    orcamento: 750,
-  });
+const detectCategory = (nome: string): string => {
+  const lowerCaseName = nome.toLowerCase();
+  if (lowerCaseName.includes("leite") || lowerCaseName.includes("queijo") || lowerCaseName.includes("iogurte")) return "Laticínios";
+  if (lowerCaseName.includes("maçã") || lowerCaseName.includes("banana") || lowerCaseName.includes("alface")) return "Hortifruti";
+  if (lowerCaseName.includes("frango") || lowerCaseName.includes("carne") || lowerCaseName.includes("peixe")) return "Carnes";
+  if (lowerCaseName.includes("pão") || lowerCaseName.includes("bolo")) return "Padaria";
+  if (lowerCaseName.includes("coca-cola") || lowerCaseName.includes("suco") || lowerCaseName.includes("água")) return "Bebidas";
+  if (lowerCaseName.includes("sabão") || lowerCaseName.includes("detergente") || lowerCaseName.includes("amaciante")) return "Limpeza";
+  return "Outros";
+};
 
+// Main App Component
+export default function ComprinhasProApp() {
+  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [orcamento, setOrcamento] = useState(800);
   const [nomeProduto, setNomeProduto] = useState("");
-  const [valor, setValor] = useState("");
-  const [showSplash, setShowSplash] = useState(true);
-  const [tema, setTema] = useState<"light" | "dark">("dark");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [valorProduto, setValorProduto] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isGrid, setIsGrid] = useState(true);
 
-  // Efeito da tela de Splash
-  useEffect(() => {
-    const timer = setTimeout(() => setShowSplash(false), 2000);
-    return () => clearTimeout(timer);
-  }, []);
+  const totalGasto = useMemo(() => produtos.reduce((acc, p) => acc + p.valor * p.quantidade, 0), [produtos]);
+  const percentualGasto = useMemo(() => (totalGasto / orcamento) * 100, [totalGasto, orcamento]);
 
-  // Efeito para tema
-  useEffect(() => {
-    const root = window.document.documentElement;
-    root.classList.remove("light", "dark");
-    root.classList.add(tema);
-  }, [tema]);
-
-  // Funções Core
-  const adicionarProduto = useCallback(() => {
-    if (!nomeProduto.trim() || !valor || Number.parseFloat(valor) <= 0) {
-      toast.error("Ops! Preencha o nome e o valor do produto.");
-      return;
-    }
-
-    // IA Simples para detectar categoria
-    let categoriaDetectada: keyof typeof CATEGORIAS = "Outros";
-    const nomeLower = nomeProduto.toLowerCase();
-    if (nomeLower.includes("leite") || nomeLower.includes("queijo")) categoriaDetectada = "Laticínios";
-    if (nomeLower.includes("maçã") || nomeLower.includes("banana")) categoriaDetectada = "Hortifrúti";
-    if (nomeLower.includes("pão")) categoriaDetectada = "Padaria";
-    if (nomeLower.includes("arroz") || nomeLower.includes("feijão")) categoriaDetectada = "Cereais & Grãos";
-    if (nomeLower.includes("frango") || nomeLower.includes("carne")) categoriaDetectada = "Proteínas";
-
-    const novoProduto: Produto = {
+  const adicionarProduto = () => {
+    if (!nomeProduto || !valorProduto) return;
+    const newProduct: Produto = {
       id: Date.now(),
-      nome: nomeProduto.trim(),
-      quantidade: 1, // Simplificado para o quick add
-      valor: Number.parseFloat(valor),
-      total: Number.parseFloat(valor),
-      categoria: categoriaDetectada,
-      adicionadoEm: new Date(),
+      nome: nomeProduto,
+      valor: parseFloat(valorProduto),
+      quantidade: 1,
+      categoria: detectCategory(nomeProduto),
     };
-
-    setListaAtual(prev => ({
-      ...prev,
-      produtos: [novoProduto, ...prev.produtos],
-      totalGasto: prev.totalGasto + novoProduto.total,
-    }));
-
-    toast.success(`${novoProduto.nome} foi adicionado à lista!`);
+    setProdutos(prev => [newProduct, ...prev]);
     setNomeProduto("");
-    setValor("");
-  }, [nomeProduto, valor]);
+    setValorProduto("");
+  };
 
-  const removerProduto = useCallback((id: number) => {
-    let produtoRemovido;
-    setListaAtual(prev => {
-      produtoRemovido = prev.produtos.find(p => p.id === id);
-      if (!produtoRemovido) return prev;
-      return {
-        ...prev,
-        produtos: prev.produtos.filter(p => p.id !== id),
-        totalGasto: prev.totalGasto - produtoRemovido.total,
-      };
-    });
-    if (produtoRemovido) {
-      toast.info(`${produtoRemovido.nome} removido da lista.`);
-    }
-  }, []);
+  const removerProduto = (id: number) => {
+    setProdutos(prev => prev.filter(p => p.id !== id));
+  };
+  
+  const filteredProdutos = useMemo(() => {
+    return produtos.filter(p => p.nome.toLowerCase().includes(searchTerm.toLowerCase()));
+  }, [produtos, searchTerm]);
 
-  // Agrupamento de produtos por categoria para renderização
   const produtosAgrupados = useMemo(() => {
-    return listaAtual.produtos.reduce((acc, produto) => {
-      const categoria = produto.categoria;
-      if (!acc[categoria]) {
-        acc[categoria] = [];
+    const grupos: Record<string, Categoria> = {};
+    filteredProdutos.forEach(produto => {
+      if (!grupos[produto.categoria]) {
+        grupos[produto.categoria] = {
+          nome: produto.categoria,
+          emoji: CATEGORIAS_MAP[produto.categoria] || "🛒",
+          items: [],
+        };
       }
-      acc[categoria].push(produto);
-      return acc;
-    }, {} as Record<string, Produto[]>);
-  }, [listaAtual.produtos]);
-
-  const [categoriasExpandidas, setCategoriasExpandidas] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    const novasCategorias: Record<string, boolean> = {};
-    Object.keys(produtosAgrupados).forEach(cat => {
-      novasCategorias[cat] = categoriasExpandidas[cat] ?? true;
+      grupos[produto.categoria].items.push(produto);
     });
-    setCategoriasExpandidas(novasCategorias);
-  }, [produtosAgrupados]);
+    return Object.values(grupos);
+  }, [filteredProdutos]);
 
-
-  // =================================================================================
-  // RENDERIZAÇÃO
-  // =================================================================================
-
-  if (showSplash) {
-    return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-900 gap-4">
-        <div className="text-7xl">
-          <div className="animate-bounce">🛒</div>
-        </div>
-        <h1 className="text-3xl font-bold text-white tracking-tighter">Comprinhas</h1>
-        <p className="text-slate-400">Sua lista de compras inteligente.</p>
-      </div>
-    );
-  }
+  const getFinancialStatus = () => {
+    if (percentualGasto < 50) return { color: "text-green-400", bgColor: "bg-green-500", icon: <Snowflake className="h-8 w-8" /> };
+    if (percentualGasto < 85) return { color: "text-yellow-400", bgColor: "bg-yellow-500", icon: <Target className="h-8 w-8" /> };
+    return { color: "text-red-400", bgColor: "bg-red-500", icon: <Flame className="h-8 w-8" /> };
+  };
+  
+  const { color, bgColor, icon } = getFinancialStatus();
 
   return (
-    <>
-      <Toaster position="top-center" richColors theme={tema} />
-      <div className={cn(
-        "min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300",
-        inter.className
-      )}>
-        <div className="flex">
-          {/* --- SIDEBAR --- */}
-          <aside className={cn(
-            "fixed lg:relative lg:translate-x-0 h-screen bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 transition-transform duration-300 ease-in-out z-20",
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          )}>
-            <nav className="p-4 flex flex-col h-full">
-              <div className="flex items-center gap-2 mb-8">
-                <LayoutDashboard className="text-purple-500" />
-                <h1 className="text-xl font-bold text-slate-800 dark:text-white">Comprinhas</h1>
+    <div className="min-h-screen w-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-sans">
+      <main className="grid grid-cols-1 lg:grid-cols-12 gap-8 p-4 md:p-8 max-w-[1600px] mx-auto">
+        
+        {/* Coluna Central: Lista de Compras */}
+        <div className="lg:col-span-8 xl:col-span-6">
+          <header className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tighter text-slate-900 dark:text-white">Sua Lista de Compras</h1>
+              <p className="text-slate-500 dark:text-slate-400">Adicione, remova e organize seus itens.</p>
+            </div>
+             <div className="flex items-center gap-2 p-1 bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-lg">
+                <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                         <Button variant="ghost" size="icon" onClick={() => setIsGrid(true)} className={isGrid ? 'bg-slate-100 dark:bg-slate-800' : ''}>
+                           <LayoutGrid className="h-4 w-4"/>
+                         </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Visualização em Grade</p></TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                         <Button variant="ghost" size="icon" onClick={() => setIsGrid(false)} className={!isGrid ? 'bg-slate-100 dark:bg-slate-800' : ''}>
+                           <List className="h-4 w-4"/>
+                         </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Visualização em Lista</p></TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
               </div>
-              <ul className="space-y-2">
-                <li><Button variant="ghost" className="w-full justify-start gap-2"><LayoutDashboard /> Painel</Button></li>
-                <li><Button variant="ghost" className="w-full justify-start gap-2"><History /> Histórico</Button></li>
-                <li><Button variant="ghost" className="w-full justify-start gap-2"><Users /> Colaboradores</Button></li>
-                <li><Button variant="ghost" className="w-full justify-start gap-2"><BarChart3 /> Análises</Button></li>
-              </ul>
-              <div className="mt-auto">
-                 <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => setTema(tema === 'dark' ? 'light' : 'dark')}>
-                  {tema === 'dark' ? <Sun /> : <Moon />}
-                  Alternar Tema
-                </Button>
-                <Button variant="ghost" className="w-full justify-start gap-2"><Settings /> Configurações</Button>
-              </div>
-            </nav>
-          </aside>
-          
-          <div className="flex-1">
-            {/* --- HEADER --- */}
-            <header className="sticky top-0 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-lg border-b border-slate-200 dark:border-slate-800 p-4 z-10">
-              <div className="flex items-center justify-between">
-                <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(!sidebarOpen)}>
-                  <Menu />
-                </Button>
-                 <div className="flex-1 text-center lg:text-left">
-                  <h2 className="text-xl font-semibold text-slate-800 dark:text-white">{listaAtual.nome}</h2>
-                 </div>
-                <div className="flex items-center gap-2">
-                   <Button size="sm" className="bg-purple-600 hover:bg-purple-700"><Share2 className="h-4 w-4 mr-2" /> Compartilhar</Button>
-                </div>
-              </div>
-            </header>
-            
-            {/* --- MAIN CONTENT --- */}
-            <main className="p-4 sm:p-6 lg:p-8">
-              {/* --- Resumo Financeiro --- */}
-              <Card className="mb-8 border-none bg-gradient-to-br from-purple-600 to-blue-600 text-white shadow-lg">
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-center mb-4">
-                     <span className="font-medium">Resumo Financeiro</span>
-                     <Wallet/>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-                    <div className="flex flex-col gap-1">
-                       <Label className="text-purple-200">Orçamento</Label>
-                       <p className="text-3xl font-bold tracking-tighter">R$ {listaAtual.orcamento.toFixed(2)}</p>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                       <Label className="text-purple-200">Total Gasto</Label>
-                       <p className="text-3xl font-bold tracking-tighter">R$ {listaAtual.totalGasto.toFixed(2)}</p>
-                    </div>
-                     <div className="flex flex-col gap-1">
-                       <Label className="text-purple-200">Restante</Label>
-                       <p className="text-3xl font-bold tracking-tighter text-green-300">R$ {(listaAtual.orcamento - listaAtual.totalGasto).toFixed(2)}</p>
-                    </div>
-                  </div>
-                  <div className="mt-6">
-                    <Progress value={(listaAtual.totalGasto / listaAtual.orcamento) * 100} className="bg-white/20 h-2 [&>div]:bg-white" />
-                    <div className="flex justify-between text-xs mt-2 text-purple-200">
-                      <span>0%</span>
-                      <span>{((listaAtual.totalGasto / listaAtual.orcamento) * 100).toFixed(0)}% Gasto</span>
-                      <span>100%</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+          </header>
 
-              {/* --- Lista de Produtos --- */}
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-2xl font-bold text-slate-800 dark:text-white">Sua Lista</h3>
-                  <div className="flex items-center gap-2 p-1 bg-slate-200 dark:bg-slate-800 rounded-lg">
-                     <Input placeholder="Buscar na lista..." className="h-8 border-none bg-transparent focus:ring-0" />
-                     <Search className="h-4 w-4 text-slate-500"/>
-                  </div>
-                </div>
-
-                {listaAtual.produtos.length === 0 ? (
-                  <div className="text-center py-20 rounded-lg border-2 border-dashed border-slate-200 dark:border-slate-800">
-                    <ShoppingCart className="mx-auto h-12 w-12 text-slate-400" />
-                    <h3 className="mt-4 text-lg font-medium text-slate-800 dark:text-white">Sua lista está vazia</h3>
-                    <p className="mt-1 text-sm text-slate-500">Adicione seu primeiro produto abaixo.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {Object.entries(produtosAgrupados).map(([categoria, produtos]) => (
-                      <div key={categoria}>
-                        <button 
-                          className="w-full flex items-center justify-between py-2"
-                          onClick={() => setCategoriasExpandidas(prev => ({...prev, [categoria]: !prev[categoria]}))}
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-2xl">{CATEGORIAS[categoria as keyof typeof CATEGORIAS]}</span>
-                            <span className="font-bold text-lg text-slate-800 dark:text-white">{categoria}</span>
-                            <Badge variant="secondary">{produtos.length}</Badge>
-                          </div>
-                          <ChevronDown className={cn("transition-transform", {"rotate-180": categoriasExpandidas[categoria]})}/>
-                        </button>
-                        
-                        {categoriasExpandidas[categoria] && (
-                          <div className="space-y-2 mt-2">
-                          {produtos.map(produto => (
-                            <Card key={produto.id} className="bg-white dark:bg-slate-800/50 hover:shadow-md transition-shadow animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
-                              <CardContent className="p-3 flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                  <div className="font-medium text-slate-800 dark:text-white">{produto.nome}</div>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                  <div className="text-slate-600 dark:text-slate-300 font-semibold">R$ {produto.valor.toFixed(2)}</div>
-                                  <Button onClick={() => removerProduto(produto.id)} variant="ghost" size="icon" className="text-slate-500 hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-500">
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </main>
+          <div className="relative mb-6">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400"/>
+            <Input 
+              placeholder="Buscar na lista..." 
+              className="pl-10 h-12 text-base bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
+
+          <AnimatePresence>
+            {produtosAgrupados.length > 0 ? (
+              <motion.div layout>
+                 <Accordion type="multiple" defaultValue={produtosAgrupados.map(g => g.nome)} className="space-y-4">
+                  <AnimatePresence>
+                  {produtosAgrupados.map((grupo) => (
+                    <motion.div key={grupo.nome} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                        <AccordionItem value={grupo.nome} className="border-none">
+                             <Card className="bg-white dark:bg-slate-900/50 overflow-hidden">
+                               <AccordionTrigger className="p-4 hover:no-underline">
+                                 <div className="flex items-center gap-4">
+                                   <span className="text-2xl">{grupo.emoji}</span>
+                                   <h3 className="font-bold text-lg">{grupo.nome}</h3>
+                                   <Badge variant="secondary">{grupo.items.length}</Badge>
+                                 </div>
+                               </AccordionTrigger>
+                               <AccordionContent className="px-4">
+                                 <motion.div 
+                                    className={isGrid ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" : "space-y-2"}
+                                  >
+                                    <AnimatePresence>
+                                       {grupo.items.map((produto) => (
+                                          <motion.div
+                                            key={produto.id}
+                                            layout
+                                            initial={{ opacity: 0, y: 20 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, x: -20 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="relative group"
+                                          >
+                                              <Card className="hover:border-purple-500 dark:hover:border-purple-500 transition-colors bg-slate-50 dark:bg-slate-800/80">
+                                                <CardContent className="p-4 flex items-center justify-between">
+                                                  <span className="font-semibold">{produto.nome}</span>
+                                                  <span className="font-mono font-bold text-purple-500">R${produto.valor.toFixed(2)}</span>
+                                                </CardContent>
+                                              </Card>
+                                              <Button 
+                                                onClick={() => removerProduto(produto.id)}
+                                                variant="destructive" size="icon" 
+                                                className="absolute -top-2 -right-2 h-7 w-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                              >
+                                                <X className="h-4 w-4" />
+                                              </Button>
+                                          </motion.div>
+                                       ))}
+                                    </AnimatePresence>
+                                  </motion.div>
+                               </AccordionContent>
+                             </Card>
+                        </AccordionItem>
+                    </motion.div>
+                  ))}
+                  </AnimatePresence>
+                 </Accordion>
+              </motion.div>
+            ) : (
+               <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex flex-col items-center justify-center text-center py-20 rounded-2xl bg-white dark:bg-slate-900/50 border-2 border-dashed border-slate-200 dark:border-slate-800"
+               >
+                  <ShoppingCart className="h-16 w-16 text-slate-400 dark:text-slate-600 mb-4"/>
+                  <h2 className="text-xl font-bold">Sua lista está vazia</h2>
+                  <p className="text-slate-500 dark:text-slate-400">Comece adicionando seu primeiro produto no painel ao lado.</p>
+               </motion.div>
+            )}
+            </AnimatePresence>
         </div>
 
-        {/* --- Quick Add Flutuante --- */}
-         <div className="sticky bottom-0 p-4 bg-transparent lg:hidden">
-            <Drawer>
-                <DrawerTrigger asChild>
-                    <Button className="w-full h-14 rounded-full bg-purple-600 hover:bg-purple-700 shadow-2xl shadow-purple-500/50 text-lg">
-                        <Plus className="h-6 w-6 mr-2"/> Adicionar Item
-                    </Button>
-                </DrawerTrigger>
-                <DrawerContent>
-                    <div className="p-4 space-y-4">
-                         <h3 className="font-semibold text-center">Adicionar Novo Item</h3>
-                        <Input 
-                            placeholder="Nome do produto (ex: Leite Integral)" 
-                            value={nomeProduto}
-                            onChange={e => setNomeProduto(e.target.value)}
-                        />
-                        <Input 
-                            type="number" 
-                            placeholder="Valor (R$)"
-                            value={valor}
-                            onChange={e => setValor(e.target.value)}
-                        />
-                        <Button onClick={adicionarProduto} className="w-full">Adicionar à Lista</Button>
-                    </div>
-                </DrawerContent>
-            </Drawer>
-        </div>
+        {/* Coluna Direita: Ações e Resumo */}
+        <div className="lg:col-span-4 xl:col-span-4 lg:sticky top-8 self-start space-y-8">
+            <Card className="bg-gradient-to-br from-slate-900 to-slate-800 dark:from-slate-950 dark:to-slate-900 text-white shadow-2xl shadow-slate-900/20">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Resumo Financeiro</CardTitle>
+                <motion.div animate={{ scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }} transition={{ duration: 0.5 }}>
+                  {icon}
+                </motion.div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400">Total Gasto</span>
+                    <span className="text-4xl font-bold tracking-tighter">R$ {totalGasto.toFixed(2)}</span>
+                  </div>
+                   <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400">Orçamento</span>
+                     <Input 
+                        type="number" 
+                        value={orcamento}
+                        onChange={(e) => setOrcamento(parseFloat(e.target.value) || 0)}
+                        className="w-28 bg-transparent border-slate-700 text-right text-lg font-bold"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Progress value={percentualGasto} className={`h-3 ${bgColor}`} indicatorClassName={color} />
+                     <div className="flex justify-between text-sm font-medium">
+                        <span className="text-slate-400">Gasto: {percentualGasto.toFixed(1)}%</span>
+                        <span className={color}>Restante: R$ {(orcamento - totalGasto).toFixed(2)}</span>
+                     </div>
+                  </div>
+              </CardContent>
+            </Card>
 
-        {/* Quick Add para Desktop */}
-         <div className="hidden lg:block fixed bottom-8 right-8 z-10">
-              <Card className="w-96 bg-white/80 dark:bg-slate-950/80 backdrop-blur-lg shadow-xl border-slate-200 dark:border-slate-800">
-                  <CardHeader>
-                    <CardTitle className="text-base">Adicionar Item Rápido</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                      <Input 
-                          placeholder="Nome do produto" 
-                          value={nomeProduto}
-                          onChange={e => setNomeProduto(e.target.value)}
-                          onKeyPress={e => e.key === 'Enter' && adicionarProduto()}
-                      />
-                       <Input 
-                          type="number" 
-                          placeholder="Valor (R$)"
-                          value={valor}
-                          onChange={e => setValor(e.target.value)}
-                          onKeyPress={e => e.key === 'Enter' && adicionarProduto()}
-                      />
-                       <Button onClick={adicionarProduto} className="w-full bg-purple-600 hover:bg-purple-700">
-                         <Plus className="h-4 w-4 mr-2"/> Adicionar
-                       </Button>
-                  </CardContent>
-              </Card>
+             <Card className="bg-white dark:bg-slate-900/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Plus/> Adicionar Novo Item</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label htmlFor="productName" className="text-sm font-medium text-slate-700 dark:text-slate-300">Nome do Produto</label>
+                    <Input 
+                      id="productName"
+                      placeholder="Ex: Leite Integral" 
+                      className="mt-1 bg-slate-50 dark:bg-slate-800/80"
+                      value={nomeProduto}
+                      onChange={(e) => setNomeProduto(e.target.value)}
+                    />
+                  </div>
+                   <div>
+                    <label htmlFor="productValue" className="text-sm font-medium text-slate-700 dark:text-slate-300">Valor (R$)</label>
+                    <Input 
+                      id="productValue"
+                      type="number" 
+                      placeholder="Ex: 5.99" 
+                      className="mt-1 bg-slate-50 dark:bg-slate-800/80"
+                      value={valorProduto}
+                      onChange={(e) => setValorProduto(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && adicionarProduto()}
+                    />
+                  </div>
+                  <Button onClick={adicionarProduto} size="lg" className="w-full bg-purple-600 hover:bg-purple-700 dark:text-white">Adicionar à Lista</Button>
+                </CardContent>
+             </Card>
+             <div className="text-center text-xs text-slate-400 dark:text-slate-600 flex items-center justify-center gap-2">
+                <Bot className="h-4 w-4"/>
+                <span>Design recriado com IA para máxima produtividade.</span>
+            </div>
         </div>
-      </div>
-    </>
-  );
+      </main>
+    </div>
+  )
 }
