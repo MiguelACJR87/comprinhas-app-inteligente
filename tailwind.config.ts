@@ -1,7 +1,5 @@
 import type { Config } from "tailwindcss";
 
-// all in fixtures is set to tailwind v3 as interims solutions
-
 const config: Config = {
     darkMode: ["class"],
     content: [
@@ -69,6 +67,7 @@ const config: Config = {
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
+      // ANIMAÇÕES ADICIONADAS PARA O ACORDEÃO
   		keyframes: {
   			'accordion-down': {
   				from: {
