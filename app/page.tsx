@@ -1,79 +1,460 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Moon,
+  Sun,
+  ShoppingCart,
+  Plus,
+  Trash2,
+  Share2,
+  TrendingUp,
+  TrendingDown,
+  Users,
+  History,
+  Settings,
+  AlertTriangle,
+  Mic,
+  MicOff,
+  Eye,
+  Search,
+  BarChart3,
+  Clock,
+  DollarSign,
+  Package,
+  Target,
+  Zap,
+  Copy,
+  Check,
+  X,
+  RefreshCw,
+  Store,
+  Percent,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
+  Smartphone,
+  Tablet,
+  Monitor,
+} from "lucide-react"
 
+// Interfaces
 interface Produto {
   id: number
   nome: string
   quantidade: number
   valor: number
   total: number
-  categoria?: string
-  emoji?: string
+  categoria: string
+  emoji: string
   adicionadoEm: Date
+  adicionadoPor?: string
+  editadoEm?: Date
+  observacoes?: string
+  marca?: string
+  unidade?: string
 }
 
-interface Conquista {
+interface ListaCompras {
   id: string
-  titulo: string
-  descricao: string
-  icone: string
-  desbloqueada: boolean
-  progresso?: number
-  meta?: number
+  nome: string
+  produtos: Produto[]
+  criadaEm: Date
+  finalizadaEm?: Date
+  totalGasto: number
+  orcamento: number
+  colaboradores: string[]
+  criador: string
+  status: "ativa" | "finalizada" | "arquivada"
 }
 
-const categorias = {
-  "🌾 Cereais": ["Arroz", "Feijão", "Lentilha", "Grão de Bico", "Quinoa", "Aveia"],
-  "🥛 Laticínios": ["Leite", "Queijo", "Iogurte", "Manteiga", "Requeijão", "Creme de Leite"],
-  "🥩 Proteína": ["Frango", "Carne Bovina", "Peixe", "Ovos", "Presunto", "Mortadela"],
-  "🍎 Hortifrúti": ["Banana", "Maçã", "Tomate", "Cebola", "Batata", "Cenoura"],
-  "🍞 Padaria": ["Pão de Forma", "Pão Francês", "Biscoito", "Bolo", "Torrada"],
-  "🧂 Outros": ["Açúcar", "Sal", "Óleo", "Vinagre", "Temperos", "Café"],
+interface ComparacaoPreco {
+  produto: string
+  precoAtual: number
+  melhorPreco: number
+  loja: string
+  economia: number
+  percentualEconomia: number
+  disponivel: boolean
+  ultimaAtualizacao: Date
 }
 
-const emojisAleatorios = ["🛒", "🛍️", "🎯", "💫", "⭐", "🌟", "✨", "🎉", "🎊", "🔥"]
+interface AlertaOrcamento {
+  ativo: boolean
+  percentual: number
+  tipo: "warning" | "danger"
+  mensagem: string
+}
 
-const conquistasIniciais: Conquista[] = [
-  {
-    id: "1",
-    titulo: "Primeira Lista",
-    descricao: "Crie sua primeira lista de compras",
-    icone: "🎯",
-    desbloqueada: false,
+interface Configuracoes {
+  tema: "light" | "dark" | "auto"
+  alertaOrcamento: {
+    ativo: boolean
+    percentuais: number[]
+    sons: boolean
+    notificacoes: boolean
+  }
+  colaboracao: {
+    permitirEdicao: boolean
+    notificarMudancas: boolean
+    aprovarNovosColaboradores: boolean
+  }
+  comparacaoPrecos: {
+    ativo: boolean
+    lojas: string[]
+    atualizacaoAutomatica: boolean
+  }
+  interface: {
+    densidade: "compacta" | "normal" | "espaçosa"
+    animacoes: boolean
+    sons: boolean
+  }
+}
+
+// Base de dados expandida
+const categoriasExpandidas = {
+  "🌾 Cereais & Grãos": {
+    itens: [
+      "Arroz Branco",
+      "Arroz Integral",
+      "Arroz Parboilizado",
+      "Feijão Preto",
+      "Feijão Carioca",
+      "Feijão Fradinho",
+      "Lentilha",
+      "Grão de Bico",
+      "Ervilha Seca",
+      "Quinoa",
+      "Aveia em Flocos",
+      "Aveia Integral",
+      "Centeio",
+      "Cevada",
+      "Trigo para Kibe",
+      "Farinha de Trigo",
+      "Farinha Integral",
+      "Farinha de Milho",
+      "Fubá",
+      "Polenta",
+      "Tapioca",
+      "Farinha de Mandioca",
+      "Farinha de Rosca",
+    ],
+    cor: "#f59e0b",
   },
-  { id: "2", titulo: "Economizador", descricao: "Economize R$ 50 em uma lista", icone: "💰", desbloqueada: false },
-  {
-    id: "3",
-    titulo: "Organizador",
-    descricao: "Adicione 20 produtos",
-    icone: "📋",
-    desbloqueada: false,
-    progresso: 0,
-    meta: 20,
+  "🥛 Laticínios": {
+    itens: [
+      "Leite Integral",
+      "Leite Desnatado",
+      "Leite Semi-desnatado",
+      "Leite Condensado",
+      "Creme de Leite",
+      "Queijo Mussarela",
+      "Queijo Prato",
+      "Queijo Parmesão",
+      "Queijo Minas",
+      "Queijo Coalho",
+      "Requeijão",
+      "Manteiga",
+      "Margarina",
+      "Iogurte Natural",
+      "Iogurte Grego",
+      "Coalhada",
+      "Nata",
+      "Chantilly",
+      "Ricota",
+      "Queijo Cottage",
+      "Leite em Pó",
+      "Achocolatado",
+    ],
+    cor: "#3b82f6",
   },
+  "🥩 Proteínas": {
+    itens: [
+      "Frango Inteiro",
+      "Peito de Frango",
+      "Coxa de Frango",
+      "Asa de Frango",
+      "Carne Bovina",
+      "Alcatra",
+      "Picanha",
+      "Maminha",
+      "Patinho",
+      "Coxão Mole",
+      "Carne Moída",
+      "Costela",
+      "Carne de Porco",
+      "Lombo",
+      "Pernil",
+      "Linguiça",
+      "Bacon",
+      "Presunto",
+      "Mortadela",
+      "Salame",
+      "Ovos",
+      "Peixe",
+      "Salmão",
+      "Tilápia",
+      "Sardinha",
+      "Atum",
+      "Camarão",
+    ],
+    cor: "#ef4444",
+  },
+  "🍎 Hortifrúti": {
+    itens: [
+      "Banana",
+      "Maçã",
+      "Laranja",
+      "Limão",
+      "Mamão",
+      "Abacaxi",
+      "Manga",
+      "Uva",
+      "Pêra",
+      "Melancia",
+      "Melão",
+      "Morango",
+      "Abacate",
+      "Kiwi",
+      "Tomate",
+      "Cebola",
+      "Alho",
+      "Batata",
+      "Batata Doce",
+      "Cenoura",
+      "Beterraba",
+      "Abobrinha",
+      "Berinjela",
+      "Pimentão",
+      "Brócolis",
+      "Couve-flor",
+      "Alface",
+      "Rúcula",
+      "Espinafre",
+      "Couve",
+      "Repolho",
+      "Pepino",
+      "Aipo",
+      "Salsa",
+      "Cebolinha",
+    ],
+    cor: "#10b981",
+  },
+  "🍞 Padaria": {
+    itens: [
+      "Pão de Forma",
+      "Pão Francês",
+      "Pão Integral",
+      "Pão de Açúcar",
+      "Pão Doce",
+      "Croissant",
+      "Biscoito Cream Cracker",
+      "Biscoito Maria",
+      "Biscoito Recheado",
+      "Bolacha Água e Sal",
+      "Torrada",
+      "Bolo",
+      "Sonho",
+      "Rosquinha",
+      "Pão de Mel",
+      "Panetone",
+      "Brioche",
+    ],
+    cor: "#f97316",
+  },
+  "🧂 Temperos & Condimentos": {
+    itens: [
+      "Sal",
+      "Açúcar Cristal",
+      "Açúcar Refinado",
+      "Açúcar Mascavo",
+      "Açúcar Demerara",
+      "Mel",
+      "Óleo de Soja",
+      "Óleo de Girassol",
+      "Azeite",
+      "Vinagre",
+      "Vinagre Balsâmico",
+      "Mostarda",
+      "Ketchup",
+      "Maionese",
+      "Molho de Tomate",
+      "Extrato de Tomate",
+      "Pimenta do Reino",
+      "Cominho",
+      "Orégano",
+      "Manjericão",
+      "Alecrim",
+      "Tomilho",
+      "Curry",
+      "Páprica",
+      "Canela",
+    ],
+    cor: "#8b5cf6",
+  },
+  "☕ Bebidas": {
+    itens: [
+      "Café em Pó",
+      "Café em Grãos",
+      "Café Solúvel",
+      "Chá Preto",
+      "Chá Verde",
+      "Chá de Camomila",
+      "Água Mineral",
+      "Refrigerante Cola",
+      "Refrigerante Guaraná",
+      "Suco de Laranja",
+      "Suco de Uva",
+      "Cerveja",
+      "Vinho Tinto",
+      "Vinho Branco",
+      "Energético",
+      "Isotônico",
+      "Água de Coco",
+    ],
+    cor: "#06b6d4",
+  },
+  "🧽 Limpeza": {
+    itens: [
+      "Detergente",
+      "Sabão em Pó",
+      "Amaciante",
+      "Desinfetante",
+      "Álcool",
+      "Água Sanitária",
+      "Sabonete",
+      "Shampoo",
+      "Condicionador",
+      "Pasta de Dente",
+      "Papel Higiênico",
+      "Papel Toalha",
+      "Esponja",
+      "Pano de Chão",
+      "Vassoura",
+      "Rodo",
+      "Saco de Lixo",
+      "Luva de Borracha",
+    ],
+    cor: "#84cc16",
+  },
+}
+
+const lojasParceiras = [
+  { nome: "Extra", logo: "🛒", cor: "#e11d48" },
+  { nome: "Carrefour", logo: "🏪", cor: "#2563eb" },
+  { nome: "Pão de Açúcar", logo: "🍞", cor: "#dc2626" },
+  { nome: "Atacadão", logo: "📦", cor: "#f59e0b" },
+  { nome: "Assaí", logo: "🏬", cor: "#059669" },
+  { nome: "Sam's Club", logo: "🏢", cor: "#7c3aed" },
+  { nome: "Makro", logo: "🏭", cor: "#0891b2" },
+  { nome: "Walmart", logo: "⭐", cor: "#1d4ed8" },
 ]
 
-export default function ComprinhasApp() {
+export default function ComprinhasAppProfessional() {
+  // Estados principais
   const [showSplash, setShowSplash] = useState(true)
-  const [listaCompras, setListaCompras] = useState<Produto[]>([])
-  const [orcamento, setOrcamento] = useState(0)
+  const [tema, setTema] = useState<"light" | "dark" | "auto">("dark")
+  const [listaAtual, setListaAtual] = useState<ListaCompras>({
+    id: Date.now().toString(),
+    nome: "Lista Principal",
+    produtos: [],
+    criadaEm: new Date(),
+    totalGasto: 0,
+    orcamento: 0,
+    colaboradores: [],
+    criador: "Usuário Principal",
+    status: "ativa",
+  })
+
+  // Estados do formulário
   const [nomeProduto, setNomeProduto] = useState("")
   const [quantidade, setQuantidade] = useState(1)
   const [valor, setValor] = useState("")
-  const [categoriasExpandidas, setCategoriasExpandidas] = useState<string[]>([])
-  const [conquistasDesbloqueadas, setConquistasDesbloqueadas] = useState<Conquista[]>(conquistasIniciais)
-  const [showConquista, setShowConquista] = useState<Conquista | null>(null)
-  const [sugestaoIA, setSugestaoIA] = useState("")
-  const [isListening, setIsListening] = useState(false)
-  const [showEstatisticas, setShowEstatisticas] = useState(false)
-  const [tempoSessao, setTempoSessao] = useState(0)
-  const [som, setSom] = useState(true)
+  const [categoriaFiltro, setCategoriaFiltro] = useState<string>("todas")
+  const [busca, setBusca] = useState("")
 
+  // Estados de interface
+  const [categoriasExpandidas, setCategoriasExpandidas] = useState<string[]>([])
+  const [isListening, setIsListening] = useState(false)
+  const [showComparacao, setShowComparacao] = useState(false)
+  const [showColaboracao, setShowColaboracao] = useState(false)
+  const [showHistorico, setShowHistorico] = useState(false)
+  const [showConfiguracoes, setShowConfiguracoes] = useState(false)
+  const [showNovoItem, setShowNovoItem] = useState(false)
+
+  // Estados de dados
+  const [comparacaoPrecos, setComparacaoPrecos] = useState<ComparacaoPreco[]>([])
+  const [historicoListas, setHistoricoListas] = useState<ListaCompras[]>([])
+  const [alertasAtivos, setAlertasAtivos] = useState<AlertaOrcamento[]>([])
+  const [colaboradoresOnline, setColaboradoresOnline] = useState<string[]>([])
+  const [linkCompartilhamento, setLinkCompartilhamento] = useState("")
+  const [copiado, setCopiado] = useState(false)
+
+  // Configurações
+  const [configuracoes, setConfiguracoes] = useState<Configuracoes>({
+    tema: "dark",
+    alertaOrcamento: {
+      ativo: true,
+      percentuais: [50, 80, 95],
+      sons: true,
+      notificacoes: true,
+    },
+    colaboracao: {
+      permitirEdicao: true,
+      notificarMudancas: true,
+      aprovarNovosColaboradores: false,
+    },
+    comparacaoPrecos: {
+      ativo: true,
+      lojas: ["Extra", "Carrefour", "Atacadão"],
+      atualizacaoAutomatica: true,
+    },
+    interface: {
+      densidade: "normal",
+      animacoes: true,
+      sons: true,
+    },
+  })
+
+  // Estados de responsividade
+  const [dispositivoAtual, setDispositivoAtual] = useState<"mobile" | "tablet" | "desktop">("desktop")
+  const [orientacao, setOrientacao] = useState<"portrait" | "landscape">("landscape")
+
+  // Refs
   const inicioSessaoRef = useRef<Date>(new Date())
-  const totalGasto = listaCompras.reduce((sum, produto) => sum + produto.total, 0)
-  const restante = orcamento - totalGasto
-  const progressoOrcamento = orcamento > 0 ? (totalGasto / orcamento) * 100 : 0
+  const [tempoSessao, setTempoSessao] = useState(0)
+
+  // Detectar dispositivo e orientação
+  useEffect(() => {
+    const detectarDispositivo = () => {
+      const width = window.innerWidth
+      const height = window.innerHeight
+
+      if (width < 768) {
+        setDispositivoAtual("mobile")
+      } else if (width < 1024) {
+        setDispositivoAtual("tablet")
+      } else {
+        setDispositivoAtual("desktop")
+      }
+
+      setOrientacao(width > height ? "landscape" : "portrait")
+    }
+
+    detectarDispositivo()
+    window.addEventListener("resize", detectarDispositivo)
+    return () => window.removeEventListener("resize", detectarDispositivo)
+  }, [])
 
   // Timer da sessão
   useEffect(() => {
@@ -83,110 +464,114 @@ export default function ComprinhasApp() {
     return () => clearInterval(interval)
   }, [])
 
-  // Sons
-  const playSound = (tipo: "sucesso" | "erro" | "click" | "conquista") => {
-    if (!som) return
-    // Simular som com vibração se disponível
+  // Persistência de dados
+  useEffect(() => {
+    const dadosSalvos = localStorage.getItem("comprinhas-app-data")
+    if (dadosSalvos) {
+      try {
+        const dados = JSON.parse(dadosSalvos)
+        setListaAtual(dados.listaAtual || listaAtual)
+        setHistoricoListas(dados.historicoListas || [])
+        setConfiguracoes(dados.configuracoes || configuracoes)
+        setTema(dados.configuracoes?.tema || "dark")
+      } catch (error) {
+        console.error("Erro ao carregar dados salvos:", error)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const dados = {
+      listaAtual,
+      historicoListas,
+      configuracoes,
+    }
+    localStorage.setItem("comprinhas-app-data", JSON.stringify(dados))
+  }, [listaAtual, historicoListas, configuracoes])
+
+  // Verificar alertas de orçamento
+  useEffect(() => {
+    if (!configuracoes.alertaOrcamento.ativo || listaAtual.orcamento === 0) return
+
+    const percentualGasto = (listaAtual.totalGasto / listaAtual.orcamento) * 100
+    const novosAlertas: AlertaOrcamento[] = []
+
+    configuracoes.alertaOrcamento.percentuais.forEach((percentual) => {
+      if (percentualGasto >= percentual) {
+        const tipo = percentual >= 90 ? "danger" : "warning"
+        const mensagem =
+          percentual >= 90
+            ? `⚠️ Orçamento quase esgotado! ${percentualGasto.toFixed(1)}% utilizado`
+            : `📊 ${percentualGasto.toFixed(1)}% do orçamento utilizado`
+
+        novosAlertas.push({
+          ativo: true,
+          percentual,
+          tipo,
+          mensagem,
+        })
+      }
+    })
+
+    setAlertasAtivos(novosAlertas)
+
+    // Som de alerta
+    if (novosAlertas.length > 0 && configuracoes.alertaOrcamento.sons) {
+      playSound("warning")
+    }
+  }, [listaAtual.totalGasto, listaAtual.orcamento, configuracoes.alertaOrcamento])
+
+  // Funções utilitárias
+  const playSound = (tipo: "success" | "error" | "warning" | "info") => {
+    if (!configuracoes.interface.sons) return
+
     if (navigator.vibrate) {
       const padroes = {
-        sucesso: [100],
-        erro: [200, 100, 200],
-        click: [50],
-        conquista: [100, 50, 100, 50, 100],
+        success: [100],
+        error: [200, 100, 200],
+        warning: [150, 50, 150],
+        info: [50],
       }
       navigator.vibrate(padroes[tipo])
     }
   }
 
-  // Verificar conquistas
-  const verificarConquistas = () => {
-    const novasConquistas = [...conquistasDesbloqueadas]
-    let conquistaDesbloqueada = false
+  const formatarTempo = (segundos: number) => {
+    const horas = Math.floor(segundos / 3600)
+    const minutos = Math.floor((segundos % 3600) / 60)
+    const segs = segundos % 60
 
-    // Primeira lista
-    if (!novasConquistas[0].desbloqueada && listaCompras.length > 0) {
-      novasConquistas[0].desbloqueada = true
-      conquistaDesbloqueada = true
-      setShowConquista(novasConquistas[0])
+    if (horas > 0) {
+      return `${horas}h ${minutos}m`
+    } else if (minutos > 0) {
+      return `${minutos}m ${segs}s`
+    } else {
+      return `${segs}s`
     }
-
-    // Organizador (20 produtos)
-    if (!novasConquistas[2].desbloqueada) {
-      novasConquistas[2].progresso = listaCompras.length
-      if (listaCompras.length >= 20) {
-        novasConquistas[2].desbloqueada = true
-        conquistaDesbloqueada = true
-        setShowConquista(novasConquistas[2])
-      }
-    }
-
-    if (conquistaDesbloqueada) {
-      playSound("conquista")
-    }
-
-    setConquistasDesbloqueadas(novasConquistas)
   }
 
-  useEffect(() => {
-    verificarConquistas()
-  }, [listaCompras])
-
-  // IA Sugestões
-  const gerarSugestaoIA = () => {
-    const sugestoes = [
-      "💡 Que tal adicionar frutas para uma alimentação mais saudável?",
-      "🎯 Considere comprar produtos em promoção para economizar!",
-      "🥗 Não esqueça dos vegetais para uma dieta equilibrada!",
-      "💰 Produtos de marca própria podem ser mais econômicos!",
-      "📅 Planeje suas refeições da semana para otimizar as compras!",
-      "🛒 Agrupe produtos por seção do mercado para facilitar!",
-    ]
-    setSugestaoIA(sugestoes[Math.floor(Math.random() * sugestoes.length)])
-    playSound("click")
+  const formatarMoeda = (valor: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(valor)
   }
 
-  // Reconhecimento de voz (simulado)
-  const iniciarReconhecimentoVoz = () => {
-    setIsListening(true)
-    playSound("click")
-
-    // Simular reconhecimento
-    setTimeout(() => {
-      const produtosExemplo = ["Arroz", "Feijão", "Leite", "Pão", "Banana", "Frango"]
-      const produtoAleatorio = produtosExemplo[Math.floor(Math.random() * produtosExemplo.length)]
-      setNomeProduto(produtoAleatorio)
-      setIsListening(false)
-      playSound("sucesso")
-    }, 2000)
-  }
-
-  const toggleCategoria = (categoria: string) => {
-    setCategoriasExpandidas((prev) =>
-      prev.includes(categoria) ? prev.filter((c) => c !== categoria) : [...prev, categoria],
-    )
-    playSound("click")
-  }
-
-  const selecionarProduto = (produto: string) => {
-    setNomeProduto(produto)
-    setQuantidade(1)
-    playSound("click")
-  }
-
-  const adicionarProduto = () => {
+  // Funções principais
+  const adicionarProduto = useCallback(() => {
     if (!nomeProduto.trim() || !valor || Number.parseFloat(valor) <= 0) {
-      playSound("erro")
+      playSound("error")
       return
     }
 
     // Detectar categoria automaticamente
-    let categoriaDetectada = "🧂 Outros"
+    let categoriaDetectada = "🧂 Temperos & Condimentos"
     const nomeMinusculo = nomeProduto.toLowerCase()
 
-    for (const [categoria, produtos] of Object.entries(categorias)) {
+    for (const [categoria, dados] of Object.entries(categoriasExpandidas)) {
       if (
-        produtos.some(
-          (produto) => nomeMinusculo.includes(produto.toLowerCase()) || produto.toLowerCase().includes(nomeMinusculo),
+        dados.itens.some(
+          (item) => nomeMinusculo.includes(item.toLowerCase()) || item.toLowerCase().includes(nomeMinusculo),
         )
       ) {
         categoriaDetectada = categoria
@@ -201,1209 +586,1212 @@ export default function ComprinhasApp() {
       valor: Number.parseFloat(valor),
       total: quantidade * Number.parseFloat(valor),
       categoria: categoriaDetectada,
+      emoji: categoriasExpandidas[categoriaDetectada as keyof typeof categoriasExpandidas]?.itens[0] || "📦",
       adicionadoEm: new Date(),
-      emoji: emojisAleatorios[Math.floor(Math.random() * emojisAleatorios.length)],
+      adicionadoPor: listaAtual.criador,
+      unidade: "un",
     }
 
-    setListaCompras((prev) => [...prev, novoProduto])
+    setListaAtual((prev) => ({
+      ...prev,
+      produtos: [...prev.produtos, novoProduto],
+      totalGasto: prev.totalGasto + novoProduto.total,
+    }))
+
     setNomeProduto("")
     setQuantidade(1)
     setValor("")
-    playSound("sucesso")
-  }
+    playSound("success")
+  }, [nomeProduto, quantidade, valor, listaAtual.criador])
 
-  const removerProduto = (id: number) => {
-    setListaCompras((prev) => prev.filter((produto) => produto.id !== id))
-    playSound("click")
-  }
+  const removerProduto = useCallback((id: number) => {
+    setListaAtual((prev) => {
+      const produto = prev.produtos.find((p) => p.id === id)
+      if (!produto) return prev
 
-  const formatarTempo = (segundos: number) => {
-    const horas = Math.floor(segundos / 3600)
-    const minutos = Math.floor((segundos % 3600) / 60)
-    const segs = segundos % 60
+      return {
+        ...prev,
+        produtos: prev.produtos.filter((p) => p.id !== id),
+        totalGasto: prev.totalGasto - produto.total,
+      }
+    })
+    playSound("info")
+  }, [])
 
-    if (horas > 0) {
-      return `${horas}h ${minutos}m ${segs}s`
-    } else if (minutos > 0) {
-      return `${minutos}m ${segs}s`
-    } else {
-      return `${segs}s`
+  const atualizarOrcamento = useCallback((novoOrcamento: number) => {
+    setListaAtual((prev) => ({
+      ...prev,
+      orcamento: novoOrcamento,
+    }))
+  }, [])
+
+  // Simulação de comparação de preços
+  const buscarComparacaoPrecos = useCallback(async () => {
+    if (listaAtual.produtos.length === 0) return
+
+    setShowComparacao(true)
+
+    // Simular busca
+    const comparacoes: ComparacaoPreco[] = listaAtual.produtos.map((produto) => {
+      const precoBase = produto.valor
+      const variacao = (Math.random() - 0.5) * 0.4 // -20% a +20%
+      const melhorPreco = Math.max(0.1, precoBase * (1 + variacao))
+      const loja = lojasParceiras[Math.floor(Math.random() * lojasParceiras.length)]
+
+      return {
+        produto: produto.nome,
+        precoAtual: precoBase,
+        melhorPreco,
+        loja: loja.nome,
+        economia: Math.max(0, precoBase - melhorPreco),
+        percentualEconomia: Math.max(0, ((precoBase - melhorPreco) / precoBase) * 100),
+        disponivel: Math.random() > 0.1,
+        ultimaAtualizacao: new Date(),
+      }
+    })
+
+    setComparacaoPrecos(comparacoes)
+    playSound("info")
+  }, [listaAtual.produtos])
+
+  // Gerar link de compartilhamento
+  const gerarLinkCompartilhamento = useCallback(() => {
+    const linkId = Math.random().toString(36).substring(2, 15)
+    const link = `${window.location.origin}/lista/${linkId}`
+    setLinkCompartilhamento(link)
+
+    // Simular salvamento do link
+    localStorage.setItem(`lista-${linkId}`, JSON.stringify(listaAtual))
+
+    playSound("success")
+  }, [listaAtual])
+
+  const copiarLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(linkCompartilhamento)
+      setCopiado(true)
+      setTimeout(() => setCopiado(false), 2000)
+      playSound("success")
+    } catch (error) {
+      console.error("Erro ao copiar link:", error)
+      playSound("error")
+    }
+  }, [linkCompartilhamento])
+
+  // Finalizar lista
+  const finalizarLista = useCallback(() => {
+    const listaFinalizada: ListaCompras = {
+      ...listaAtual,
+      status: "finalizada",
+      finalizadaEm: new Date(),
+    }
+
+    setHistoricoListas((prev) => [listaFinalizada, ...prev.slice(0, 2)])
+
+    // Criar nova lista
+    setListaAtual({
+      id: Date.now().toString(),
+      nome: "Nova Lista",
+      produtos: [],
+      criadaEm: new Date(),
+      totalGasto: 0,
+      orcamento: 0,
+      colaboradores: [],
+      criador: "Usuário Principal",
+      status: "ativa",
+    })
+
+    playSound("success")
+  }, [listaAtual])
+
+  // Reconhecimento de voz (simulado)
+  const iniciarReconhecimentoVoz = useCallback(() => {
+    setIsListening(true)
+    playSound("info")
+
+    setTimeout(() => {
+      const produtosExemplo = [
+        "Arroz Integral",
+        "Feijão Preto",
+        "Leite Integral",
+        "Pão Francês",
+        "Banana",
+        "Frango Inteiro",
+        "Óleo de Soja",
+        "Açúcar Cristal",
+      ]
+      const produtoAleatorio = produtosExemplo[Math.floor(Math.random() * produtosExemplo.length)]
+      setNomeProduto(produtoAleatorio)
+      setIsListening(false)
+      playSound("success")
+    }, 2000)
+  }, [])
+
+  // Alternar tema
+  const alternarTema = useCallback(() => {
+    const novoTema = tema === "light" ? "dark" : "light"
+    setTema(novoTema)
+    setConfiguracoes((prev) => ({
+      ...prev,
+      tema: novoTema,
+    }))
+    playSound("info")
+  }, [tema])
+
+  // Classes CSS responsivas
+  const getResponsiveClasses = () => {
+    const base = "transition-all duration-300 ease-in-out"
+    const densidade = configuracoes.interface.densidade
+
+    switch (dispositivoAtual) {
+      case "mobile":
+        return {
+          container: `${base} px-2 py-4`,
+          card: `${base} p-3 ${densidade === "compacta" ? "p-2" : densidade === "espaçosa" ? "p-4" : "p-3"}`,
+          grid: `${base} grid-cols-1 gap-3`,
+          text: `${base} text-sm`,
+          button: `${base} text-sm px-3 py-2`,
+        }
+      case "tablet":
+        return {
+          container: `${base} px-4 py-6`,
+          card: `${base} p-4 ${densidade === "compacta" ? "p-3" : densidade === "espaçosa" ? "p-6" : "p-4"}`,
+          grid: `${base} grid-cols-2 gap-4`,
+          text: `${base} text-base`,
+          button: `${base} text-base px-4 py-2`,
+        }
+      default:
+        return {
+          container: `${base} px-6 py-8`,
+          card: `${base} p-6 ${densidade === "compacta" ? "p-4" : densidade === "espaçosa" ? "p-8" : "p-6"}`,
+          grid: `${base} grid-cols-3 gap-6`,
+          text: `${base} text-base`,
+          button: `${base} text-base px-4 py-2`,
+        }
     }
   }
 
-  const gerarPDF = () => {
-    if (listaCompras.length === 0) return
-
-    const conteudo = `
-LISTA DE COMPRAS - ${new Date().toLocaleDateString()}
-
-${listaCompras
-  .map(
-    (produto, index) =>
-      `${index + 1}. ${produto.nome}
-   Qtd: ${produto.quantidade} | R$ ${produto.valor.toFixed(2)} = R$ ${produto.total.toFixed(2)}
-   Categoria: ${produto.categoria || "Outros"}
-`,
-  )
-  .join("\n")}
-
-TOTAL GERAL: R$ ${totalGasto.toFixed(2)}
-${orcamento > 0 ? `ORÇAMENTO: R$ ${orcamento.toFixed(2)}` : ""}
-${orcamento > 0 ? `RESTANTE: R$ ${restante.toFixed(2)}` : ""}
-
-Gerado pelo Comprinhas App
-    `
-
-    const blob = new Blob([conteudo], { type: "text/plain" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `lista-compras-${new Date().toISOString().split("T")[0]}.txt`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-
-    playSound("sucesso")
-  }
-
-  const compartilharWhatsApp = () => {
-    if (listaCompras.length === 0) return
-
-    const mensagem = `🛒 *LISTA DE COMPRAS*
-📅 ${new Date().toLocaleDateString()}
-
-${listaCompras
-  .map(
-    (produto, index) =>
-      `${index + 1}. ${produto.emoji || "📦"} *${produto.nome}*
-   Qtd: ${produto.quantidade} | R$ ${produto.valor.toFixed(2)} = *R$ ${produto.total.toFixed(2)}*`,
-  )
-  .join("\n\n")}
-
-💵 *TOTAL: R$ ${totalGasto.toFixed(2)}*
-${orcamento > 0 ? `💳 Orçamento: R$ ${orcamento.toFixed(2)}` : ""}
-${orcamento > 0 ? `💰 Restante: R$ ${restante.toFixed(2)}` : ""}
-
-✨ _Gerado pelo Comprinhas App_`
-
-    const url = `https://wa.me/?text=${encodeURIComponent(mensagem)}`
-    window.open(url, "_blank")
-    playSound("sucesso")
-  }
+  const classes = getResponsiveClasses()
 
   // Tela de Splash
   if (showSplash) {
     return (
       <div
-        style={{
-          minHeight: "100vh",
-          background: "linear-gradient(to bottom right, #1e293b, #7c3aed, #1e293b)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "2rem",
-          position: "relative",
-          overflow: "hidden",
-        }}
+        className={`min-h-screen ${tema === "dark" ? "bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900" : "bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50"} flex items-center justify-center p-4 relative overflow-hidden`}
       >
         {/* Partículas animadas */}
-        <div style={{ position: "absolute", inset: 0 }}>
-          {[...Array(30)].map((_, i) => (
+        <div className="absolute inset-0">
+          {[...Array(50)].map((_, i) => (
             <div
               key={i}
+              className={`absolute w-2 h-2 ${tema === "dark" ? "bg-purple-400" : "bg-blue-400"} rounded-full opacity-30 animate-pulse`}
               style={{
-                position: "absolute",
-                width: "8px",
-                height: "8px",
-                background: "rgba(124, 58, 237, 0.3)",
-                borderRadius: "50%",
                 left: `${Math.random() * 100}%`,
                 top: `${Math.random() * 100}%`,
-                animation: `pulse ${2 + Math.random() * 3}s ease-in-out infinite`,
                 animationDelay: `${Math.random() * 3}s`,
+                animationDuration: `${2 + Math.random() * 3}s`,
               }}
             />
           ))}
         </div>
 
-        <div style={{ textAlign: "center", position: "relative", zIndex: 10 }}>
-          <div style={{ fontSize: "6rem", marginBottom: "2rem", animation: "bounce 2s ease-in-out infinite" }}>🛒</div>
+        <div className="text-center relative z-10 max-w-2xl">
+          <div className="text-8xl mb-8 animate-bounce">🛒</div>
           <h1
-            style={{
-              fontSize: "4rem",
-              fontWeight: "bold",
-              color: "white",
-              marginBottom: "1rem",
-              background: "linear-gradient(to right, #a855f7, #3b82f6)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
+            className={`text-6xl font-bold mb-4 ${tema === "dark" ? "text-white" : "text-slate-800"} bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent`}
           >
-            Comprinhas
+            Comprinhas Pro
           </h1>
-          <p style={{ fontSize: "1.5rem", color: "#e2e8f0", marginBottom: "3rem", maxWidth: "600px" }}>
-            A experiência mais inteligente para suas compras
+          <p className={`text-xl mb-8 ${tema === "dark" ? "text-slate-300" : "text-slate-600"} max-w-lg mx-auto`}>
+            A experiência mais avançada e inteligente para suas compras
           </p>
 
-          <div
-            style={{ display: "flex", justifyContent: "center", gap: "2rem", marginBottom: "3rem", flexWrap: "wrap" }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#cbd5e1" }}>
-              <span>🧠</span> IA Integrada
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 text-sm">
+            <div className={`flex items-center gap-2 ${tema === "dark" ? "text-slate-400" : "text-slate-600"}`}>
+              <Smartphone className="w-4 h-4" />
+              Responsivo
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#cbd5e1" }}>
-              <span>⚡</span> Super Rápido
+            <div className={`flex items-center gap-2 ${tema === "dark" ? "text-slate-400" : "text-slate-600"}`}>
+              <Users className="w-4 h-4" />
+              Colaborativo
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#cbd5e1" }}>
-              <span>🏆</span> Gamificado
+            <div className={`flex items-center gap-2 ${tema === "dark" ? "text-slate-400" : "text-slate-600"}`}>
+              <BarChart3 className="w-4 h-4" />
+              Comparação
+            </div>
+            <div className={`flex items-center gap-2 ${tema === "dark" ? "text-slate-400" : "text-slate-600"}`}>
+              <Zap className="w-4 h-4" />
+              IA Integrada
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              setShowSplash(false)
-              playSound("sucesso")
-            }}
-            style={{
-              background: "linear-gradient(to right, #7c3aed, #3b82f6)",
-              color: "white",
-              padding: "1rem 2rem",
-              fontSize: "1.2rem",
-              border: "none",
-              borderRadius: "50px",
-              cursor: "pointer",
-              boxShadow: "0 10px 30px rgba(124, 58, 237, 0.3)",
-              transition: "all 0.3s ease",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              margin: "0 auto",
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.transform = "translateY(-3px) scale(1.05)"
-              e.currentTarget.style.boxShadow = "0 15px 40px rgba(124, 58, 237, 0.4)"
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.transform = "translateY(0) scale(1)"
-              e.currentTarget.style.boxShadow = "0 10px 30px rgba(124, 58, 237, 0.3)"
-            }}
-          >
-            🚀 Começar Jornada ✨
-          </button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <Button
+              onClick={() => {
+                setShowSplash(false)
+                playSound("success")
+              }}
+              size="lg"
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-3 text-lg"
+            >
+              <ShoppingCart className="mr-2 h-5 w-5" />
+              Começar Jornada
+            </Button>
 
-          <div
-            style={{
-              marginTop: "2rem",
-              fontSize: "0.8rem",
-              color: "#64748b",
-              maxWidth: "400px",
-              margin: "2rem auto 0",
-            }}
-          >
-            ✨ Reconhecimento de voz • 🎯 Comparação inteligente • 🏆 Sistema de conquistas
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={alternarTema}
+                className={tema === "dark" ? "border-slate-600 text-slate-300" : "border-slate-300 text-slate-700"}
+              >
+                {tema === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
+              <span className={`text-xs ${tema === "dark" ? "text-slate-400" : "text-slate-600"}`}>
+                {dispositivoAtual === "mobile" ? (
+                  <Smartphone className="w-4 h-4" />
+                ) : dispositivoAtual === "tablet" ? (
+                  <Tablet className="w-4 h-4" />
+                ) : (
+                  <Monitor className="w-4 h-4" />
+                )}
+              </span>
+            </div>
           </div>
         </div>
-
-        <style jsx>{`
-          @keyframes bounce {
-            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-            40% { transform: translateY(-20px); }
-            60% { transform: translateY(-10px); }
-          }
-          @keyframes pulse {
-            0%, 100% { opacity: 0.3; transform: scale(1); }
-            50% { opacity: 0.8; transform: scale(1.2); }
-          }
-        `}</style>
       </div>
     )
   }
 
   return (
     <div
-      style={{
-        minHeight: "100vh",
-        background: "linear-gradient(to bottom right, #1e293b, #7c3aed, #1e293b)",
-        color: "white",
-        padding: "1rem",
-      }}
+      className={`min-h-screen ${tema === "dark" ? "bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white" : "bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 text-slate-800"} ${classes.container}`}
     >
-      {/* Conquista Modal */}
-      {showConquista && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 50,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(0,0,0,0.5)",
-            backdropFilter: "blur(10px)",
-          }}
-        >
-          <div
-            style={{
-              background: "linear-gradient(to right, #f59e0b, #f97316)",
-              padding: "2rem",
-              borderRadius: "16px",
-              textAlign: "center",
-              maxWidth: "400px",
-              margin: "1rem",
-              boxShadow: "0 25px 50px rgba(0,0,0,0.3)",
-            }}
-          >
-            <div style={{ fontSize: "4rem", marginBottom: "1rem" }}>{showConquista.icone}</div>
-            <h3 style={{ fontSize: "1.5rem", fontWeight: "bold", marginBottom: "0.5rem" }}>{showConquista.titulo}</h3>
-            <p style={{ marginBottom: "1.5rem", opacity: 0.9 }}>{showConquista.descricao}</p>
-            <button
-              onClick={() => setShowConquista(null)}
-              style={{
-                background: "white",
-                color: "#f97316",
-                padding: "0.75rem 1.5rem",
-                border: "none",
-                borderRadius: "8px",
-                fontWeight: "bold",
-                cursor: "pointer",
-              }}
-            >
-              🏆 Incrível!
-            </button>
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+          <div>
+            <h1 className="text-3xl lg:text-4xl font-bold flex items-center gap-3">
+              <ShoppingCart className="h-8 w-8 text-purple-400" />
+              Comprinhas Pro
+              <Badge variant="secondary" className="text-xs">
+                {dispositivoAtual}
+              </Badge>
+            </h1>
+            <p className={`${tema === "dark" ? "text-slate-400" : "text-slate-600"} mt-1`}>
+              Lista inteligente • {listaAtual.produtos.length} itens • {formatarTempo(tempoSessao)}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Alertas de Orçamento */}
+            {alertasAtivos.map((alerta, index) => (
+              <Alert
+                key={index}
+                className={`${alerta.tipo === "danger" ? "border-red-500 bg-red-500/10" : "border-yellow-500 bg-yellow-500/10"} p-2`}
+              >
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-xs">{alerta.mensagem}</AlertDescription>
+              </Alert>
+            ))}
+
+            <Button variant="outline" size="sm" onClick={alternarTema}>
+              {tema === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+
+            <Dialog open={showConfiguracoes} onOpenChange={setShowConfiguracoes}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>⚙️ Configurações Avançadas</DialogTitle>
+                </DialogHeader>
+
+                <Tabs defaultValue="geral" className="w-full">
+                  <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="geral">Geral</TabsTrigger>
+                    <TabsTrigger value="orcamento">Orçamento</TabsTrigger>
+                    <TabsTrigger value="colaboracao">Colaboração</TabsTrigger>
+                    <TabsTrigger value="comparacao">Comparação</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="geral" className="space-y-4">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Interface</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <Label>Densidade da Interface</Label>
+                          <Select
+                            value={configuracoes.interface.densidade}
+                            onValueChange={(value: "compacta" | "normal" | "espaçosa") =>
+                              setConfiguracoes((prev) => ({
+                                ...prev,
+                                interface: { ...prev.interface, densidade: value },
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="w-32">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="compacta">Compacta</SelectItem>
+                              <SelectItem value="normal">Normal</SelectItem>
+                              <SelectItem value="espaçosa">Espaçosa</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <Label>Animações</Label>
+                          <Switch
+                            checked={configuracoes.interface.animacoes}
+                            onCheckedChange={(checked) =>
+                              setConfiguracoes((prev) => ({
+                                ...prev,
+                                interface: { ...prev.interface, animacoes: checked },
+                              }))
+                            }
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <Label>Sons</Label>
+                          <Switch
+                            checked={configuracoes.interface.sons}
+                            onCheckedChange={(checked) =>
+                              setConfiguracoes((prev) => ({
+                                ...prev,
+                                interface: { ...prev.interface, sons: checked },
+                              }))
+                            }
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="orcamento" className="space-y-4">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Alertas de Orçamento</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <Label>Ativar Alertas</Label>
+                          <Switch
+                            checked={configuracoes.alertaOrcamento.ativo}
+                            onCheckedChange={(checked) =>
+                              setConfiguracoes((prev) => ({
+                                ...prev,
+                                alertaOrcamento: { ...prev.alertaOrcamento, ativo: checked },
+                              }))
+                            }
+                          />
+                        </div>
+
+                        <div>
+                          <Label>Percentuais de Alerta (%)</Label>
+                          <div className="grid grid-cols-3 gap-2 mt-2">
+                            {[25, 50, 75, 90, 95, 100].map((percentual) => (
+                              <div key={percentual} className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  checked={configuracoes.alertaOrcamento.percentuais.includes(percentual)}
+                                  onChange={(e) => {
+                                    const percentuais = e.target.checked
+                                      ? [...configuracoes.alertaOrcamento.percentuais, percentual]
+                                      : configuracoes.alertaOrcamento.percentuais.filter((p) => p !== percentual)
+
+                                    setConfiguracoes((prev) => ({
+                                      ...prev,
+                                      alertaOrcamento: { ...prev.alertaOrcamento, percentuais },
+                                    }))
+                                  }}
+                                />
+                                <Label className="text-sm">{percentual}%</Label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <Label>Sons de Alerta</Label>
+                          <Switch
+                            checked={configuracoes.alertaOrcamento.sons}
+                            onCheckedChange={(checked) =>
+                              setConfiguracoes((prev) => ({
+                                ...prev,
+                                alertaOrcamento: { ...prev.alertaOrcamento, sons: checked },
+                              }))
+                            }
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="colaboracao" className="space-y-4">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Colaboração em Tempo Real</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <Label>Permitir Edição</Label>
+                          <Switch
+                            checked={configuracoes.colaboracao.permitirEdicao}
+                            onCheckedChange={(checked) =>
+                              setConfiguracoes((prev) => ({
+                                ...prev,
+                                colaboracao: { ...prev.colaboracao, permitirEdicao: checked },
+                              }))
+                            }
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <Label>Notificar Mudanças</Label>
+                          <Switch
+                            checked={configuracoes.colaboracao.notificarMudancas}
+                            onCheckedChange={(checked) =>
+                              setConfiguracoes((prev) => ({
+                                ...prev,
+                                colaboracao: { ...prev.colaboracao, notificarMudancas: checked },
+                              }))
+                            }
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <Label>Aprovar Novos Colaboradores</Label>
+                          <Switch
+                            checked={configuracoes.colaboracao.aprovarNovosColaboradores}
+                            onCheckedChange={(checked) =>
+                              setConfiguracoes((prev) => ({
+                                ...prev,
+                                colaboracao: { ...prev.colaboracao, aprovarNovosColaboradores: checked },
+                              }))
+                            }
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="comparacao" className="space-y-4">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Comparação de Preços</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <Label>Ativar Comparação</Label>
+                          <Switch
+                            checked={configuracoes.comparacaoPrecos.ativo}
+                            onCheckedChange={(checked) =>
+                              setConfiguracoes((prev) => ({
+                                ...prev,
+                                comparacaoPrecos: { ...prev.comparacaoPrecos, ativo: checked },
+                              }))
+                            }
+                          />
+                        </div>
+
+                        <div>
+                          <Label>Lojas Parceiras</Label>
+                          <div className="grid grid-cols-2 gap-2 mt-2">
+                            {lojasParceiras.map((loja) => (
+                              <div key={loja.nome} className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  checked={configuracoes.comparacaoPrecos.lojas.includes(loja.nome)}
+                                  onChange={(e) => {
+                                    const lojas = e.target.checked
+                                      ? [...configuracoes.comparacaoPrecos.lojas, loja.nome]
+                                      : configuracoes.comparacaoPrecos.lojas.filter((l) => l !== loja.nome)
+
+                                    setConfiguracoes((prev) => ({
+                                      ...prev,
+                                      comparacaoPrecos: { ...prev.comparacaoPrecos, lojas },
+                                    }))
+                                  }}
+                                />
+                                <Label className="text-sm flex items-center gap-1">
+                                  <span>{loja.logo}</span>
+                                  {loja.nome}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <Label>Atualização Automática</Label>
+                          <Switch
+                            checked={configuracoes.comparacaoPrecos.atualizacaoAutomatica}
+                            onCheckedChange={(checked) =>
+                              setConfiguracoes((prev) => ({
+                                ...prev,
+                                comparacaoPrecos: { ...prev.comparacaoPrecos, atualizacaoAutomatica: checked },
+                              }))
+                            }
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
-      )}
 
-      <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
-        {/* Header com Status */}
-        <div style={{ marginBottom: "2rem" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "1rem",
-              fontSize: "0.9rem",
-              color: "#cbd5e1",
-            }}
-          >
-            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-              <span>⏱️ {formatarTempo(tempoSessao)}</span>
-              <span>
-                🏆 {conquistasDesbloqueadas.filter((c) => c.desbloqueada).length}/{conquistasDesbloqueadas.length}
-              </span>
-              <span>🔥 {listaCompras.length} itens</span>
-            </div>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <button
-                onClick={() => setSom(!som)}
-                style={{
-                  background: "rgba(255,255,255,0.1)",
-                  border: "none",
-                  color: "white",
-                  padding: "0.5rem",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                }}
-              >
-                {som ? "🔊" : "🔇"}
-              </button>
-              <button
-                onClick={() => setShowEstatisticas(true)}
-                style={{
-                  background: "rgba(255,255,255,0.1)",
-                  border: "none",
-                  color: "white",
-                  padding: "0.5rem",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                }}
-              >
-                ⚙️
-              </button>
-            </div>
-          </div>
-
-          {/* Header Principal */}
-          <div
-            style={{
-              background: "rgba(255,255,255,0.1)",
-              padding: "2rem",
-              borderRadius: "16px",
-              backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,255,255,0.1)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "2rem",
-              }}
-            >
-              <h1
-                style={{
-                  fontSize: "2rem",
-                  fontWeight: "bold",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  margin: 0,
-                }}
-              >
-                🛒 Comprinhas Inteligentes
-              </h1>
-              <div
-                style={{
-                  background: "rgba(124, 58, 237, 0.2)",
-                  color: "#a855f7",
-                  padding: "0.5rem 1rem",
-                  borderRadius: "20px",
-                  border: "1px solid rgba(124, 58, 237, 0.3)",
-                }}
-              >
-                {listaCompras.length} {listaCompras.length === 1 ? "item" : "itens"}
-              </div>
-            </div>
-
-            {/* Sugestão da IA */}
-            {sugestaoIA && (
-              <div
-                style={{
-                  background: "rgba(59, 130, 246, 0.1)",
-                  border: "1px solid rgba(59, 130, 246, 0.3)",
-                  padding: "1rem",
-                  borderRadius: "8px",
-                  marginBottom: "1.5rem",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                }}
-              >
-                <span>🧠</span>
-                <span style={{ color: "#93c5fd" }}>{sugestaoIA}</span>
-              </div>
-            )}
-
-            {/* Orçamento */}
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem" }}>🎯 Orçamento (R$)</label>
-              <input
-                type="number"
-                placeholder="Ex: 500"
-                value={orcamento || ""}
-                onChange={(e) => setOrcamento(Number.parseFloat(e.target.value) || 0)}
-                style={{
-                  width: "200px",
-                  padding: "0.75rem",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  background: "rgba(255,255,255,0.1)",
-                  color: "white",
-                  fontSize: "1rem",
-                }}
-              />
-            </div>
-
-            {/* Resumo Financeiro */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                gap: "1rem",
-                marginBottom: "1.5rem",
-              }}
-            >
-              <div
-                style={{
-                  background: "linear-gradient(to bottom right, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1))",
-                  padding: "1rem",
-                  borderRadius: "8px",
-                  textAlign: "center",
-                  border: "1px solid rgba(59, 130, 246, 0.3)",
-                }}
-              >
-                <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#60a5fa" }}>
-                  R$ {orcamento.toFixed(2)}
+        {/* Resumo Financeiro */}
+        <div className={`grid ${classes.grid} mb-6`}>
+          <Card className={classes.card}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`text-sm ${tema === "dark" ? "text-slate-400" : "text-slate-600"}`}>Orçamento</p>
+                  <p className="text-2xl font-bold text-blue-400">{formatarMoeda(listaAtual.orcamento)}</p>
                 </div>
-                <div style={{ fontSize: "0.8rem", color: "#93c5fd" }}>Orçamento</div>
+                <DollarSign className="h-8 w-8 text-blue-400" />
               </div>
+            </CardContent>
+          </Card>
 
-              <div
-                style={{
-                  background: "linear-gradient(to bottom right, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1))",
-                  padding: "1rem",
-                  borderRadius: "8px",
-                  textAlign: "center",
-                  border: "1px solid rgba(16, 185, 129, 0.3)",
-                }}
-              >
-                <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#34d399" }}>
-                  R$ {totalGasto.toFixed(2)}
+          <Card className={classes.card}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`text-sm ${tema === "dark" ? "text-slate-400" : "text-slate-600"}`}>Gasto</p>
+                  <p className="text-2xl font-bold text-green-400">{formatarMoeda(listaAtual.totalGasto)}</p>
                 </div>
-                <div style={{ fontSize: "0.8rem", color: "#6ee7b7" }}>Gasto</div>
+                <TrendingUp className="h-8 w-8 text-green-400" />
               </div>
+            </CardContent>
+          </Card>
 
-              <div
-                style={{
-                  background: `linear-gradient(to bottom right, ${restante >= 0 ? "rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1)"})`,
-                  padding: "1rem",
-                  borderRadius: "8px",
-                  textAlign: "center",
-                  border: `1px solid ${restante >= 0 ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
-                }}
-              >
-                <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: restante >= 0 ? "#34d399" : "#f87171" }}>
-                  R$ {restante.toFixed(2)}
+          <Card className={classes.card}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`text-sm ${tema === "dark" ? "text-slate-400" : "text-slate-600"}`}>Restante</p>
+                  <p
+                    className={`text-2xl font-bold ${listaAtual.orcamento - listaAtual.totalGasto >= 0 ? "text-green-400" : "text-red-400"}`}
+                  >
+                    {formatarMoeda(listaAtual.orcamento - listaAtual.totalGasto)}
+                  </p>
                 </div>
-                <div style={{ fontSize: "0.8rem", color: restante >= 0 ? "#6ee7b7" : "#fca5a5" }}>Restante</div>
+                <Target className="h-8 w-8 text-purple-400" />
               </div>
-            </div>
+            </CardContent>
+          </Card>
+        </div>
 
-            {/* Progress Bar */}
-            {orcamento > 0 && (
-              <div style={{ marginBottom: "1.5rem" }}>
+        {/* Progress Bar do Orçamento */}
+        {listaAtual.orcamento > 0 && (
+          <Card className={`${classes.card} mb-6`}>
+            <CardContent className="p-4">
+              <div className="flex justify-between items-center mb-2">
+                <Label>Progresso do Orçamento</Label>
+                <span className="text-sm font-medium">
+                  {((listaAtual.totalGasto / listaAtual.orcamento) * 100).toFixed(1)}%
+                </span>
+              </div>
+              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3">
                 <div
+                  className={`h-3 rounded-full transition-all duration-500 ${
+                    (listaAtual.totalGasto / listaAtual.orcamento) * 100 > 90
+                      ? "bg-gradient-to-r from-red-500 to-red-600"
+                      : (listaAtual.totalGasto / listaAtual.orcamento) * 100 > 75
+                        ? "bg-gradient-to-r from-yellow-500 to-orange-500"
+                        : "bg-gradient-to-r from-green-500 to-blue-500"
+                  }`}
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginBottom: "0.5rem",
-                    fontSize: "0.9rem",
+                    width: `${Math.min((listaAtual.totalGasto / listaAtual.orcamento) * 100, 100)}%`,
                   }}
-                >
-                  <span>Progresso do Orçamento</span>
-                  <span>{progressoOrcamento.toFixed(1)}%</span>
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Ações Rápidas */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          <Button
+            onClick={buscarComparacaoPrecos}
+            disabled={listaAtual.produtos.length === 0}
+            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+          >
+            <BarChart3 className="mr-2 h-4 w-4" />
+            Comparar Preços
+          </Button>
+
+          <Dialog open={showColaboracao} onOpenChange={setShowColaboracao}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Users className="mr-2 h-4 w-4" />
+                Colaborar
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>👥 Colaboração em Tempo Real</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label>Gerar Link de Compartilhamento</Label>
+                  <div className="flex gap-2 mt-2">
+                    <Button onClick={gerarLinkCompartilhamento} className="flex-1">
+                      <Share2 className="mr-2 h-4 w-4" />
+                      Gerar Link
+                    </Button>
+                  </div>
                 </div>
-                <div
-                  style={{
-                    width: "100%",
-                    height: "8px",
-                    background: "rgba(255,255,255,0.1)",
-                    borderRadius: "4px",
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: `${Math.min(progressoOrcamento, 100)}%`,
-                      height: "100%",
-                      background:
-                        progressoOrcamento > 90
-                          ? "linear-gradient(to right, #ef4444, #dc2626)"
-                          : "linear-gradient(to right, #10b981, #059669)",
-                      transition: "width 0.3s ease",
-                    }}
+
+                {linkCompartilhamento && (
+                  <div>
+                    <Label>Link Gerado</Label>
+                    <div className="flex gap-2 mt-2">
+                      <Input value={linkCompartilhamento} readOnly className="flex-1" />
+                      <Button onClick={copiarLink} variant="outline">
+                        {copiado ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">Compartilhe este link para colaboração em tempo real</p>
+                  </div>
+                )}
+
+                <div>
+                  <Label>Colaboradores Online ({colaboradoresOnline.length})</Label>
+                  <div className="mt-2 space-y-2">
+                    {colaboradoresOnline.length === 0 ? (
+                      <p className="text-sm text-slate-500">Nenhum colaborador online</p>
+                    ) : (
+                      colaboradoresOnline.map((colaborador, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-sm">{colaborador}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={showHistorico} onOpenChange={setShowHistorico}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <History className="mr-2 h-4 w-4" />
+                Histórico
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>📊 Histórico de Listas</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {historicoListas.length === 0 ? (
+                  <p className="text-center text-slate-500 py-8">Nenhuma lista finalizada ainda</p>
+                ) : (
+                  historicoListas.map((lista, index) => (
+                    <Card key={lista.id}>
+                      <CardHeader>
+                        <CardTitle className="flex items-center justify-between">
+                          <span>{lista.nome}</span>
+                          <Badge variant="secondary">{lista.produtos.length} itens</Badge>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <p className="text-slate-500">Criada em</p>
+                            <p>{lista.criadaEm.toLocaleDateString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Finalizada em</p>
+                            <p>{lista.finalizadaEm?.toLocaleDateString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Total Gasto</p>
+                            <p className="font-bold text-green-400">{formatarMoeda(lista.totalGasto)}</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Orçamento</p>
+                            <p className="font-bold text-blue-400">{formatarMoeda(lista.orcamento)}</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4">
+                          <p className="text-sm font-medium mb-2">Produtos:</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                            {lista.produtos.map((produto, pIndex) => (
+                              <div key={pIndex} className="text-xs bg-slate-100 dark:bg-slate-800 p-2 rounded">
+                                {produto.nome} - {produto.quantidade}x {formatarMoeda(produto.valor)}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Button onClick={finalizarLista} disabled={listaAtual.produtos.length === 0} variant="outline">
+            <Check className="mr-2 h-4 w-4" />
+            Finalizar Lista
+          </Button>
+        </div>
+
+        {/* Formulário de Adição */}
+        <div
+          className={`grid ${dispositivoAtual === "mobile" ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-2"} gap-6 mb-6`}
+        >
+          <Card className={classes.card}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Plus className="h-5 w-5" />
+                Adicionar Produto
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Orçamento Total</Label>
+                <Input
+                  type="number"
+                  placeholder="Ex: 500"
+                  value={listaAtual.orcamento || ""}
+                  onChange={(e) => atualizarOrcamento(Number.parseFloat(e.target.value) || 0)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label>Nome do Produto</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    value={nomeProduto}
+                    onChange={(e) => setNomeProduto(e.target.value)}
+                    placeholder="Ex: Arroz Integral 5kg"
+                    className="flex-1"
+                    onKeyPress={(e) => e.key === "Enter" && adicionarProduto()}
+                  />
+                  <Button onClick={iniciarReconhecimentoVoz} disabled={isListening} variant="outline" size="icon">
+                    {isListening ? <MicOff className="h-4 w-4 text-red-500" /> : <Mic className="h-4 w-4" />}
+                  </Button>
+                </div>
+                {isListening && <p className="text-xs text-blue-400 mt-1">🎤 Escutando... Fale o nome do produto</p>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Quantidade</Label>
+                  <Input
+                    type="number"
+                    value={quantidade}
+                    onChange={(e) => setQuantidade(Number.parseInt(e.target.value) || 1)}
+                    min="1"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Valor (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={valor}
+                    onChange={(e) => setValor(e.target.value)}
+                    placeholder="0,00"
+                    className="mt-1"
+                    onKeyPress={(e) => e.key === "Enter" && adicionarProduto()}
                   />
                 </div>
               </div>
-            )}
 
-            {/* Action Buttons */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-              <button
-                onClick={gerarPDF}
-                disabled={listaCompras.length === 0}
-                style={{
-                  background: "rgba(71, 85, 105, 0.8)",
-                  color: "white",
-                  padding: "0.5rem 1rem",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: listaCompras.length === 0 ? "not-allowed" : "pointer",
-                  opacity: listaCompras.length === 0 ? 0.5 : 1,
-                  fontSize: "0.9rem",
-                }}
+              <Button
+                onClick={adicionarProduto}
+                disabled={!nomeProduto.trim() || !valor || Number.parseFloat(valor) <= 0}
+                className="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
               >
-                📄 PDF
-              </button>
+                <Plus className="mr-2 h-4 w-4" />
+                Adicionar à Lista
+              </Button>
+            </CardContent>
+          </Card>
 
-              <button
-                onClick={compartilharWhatsApp}
-                disabled={listaCompras.length === 0}
-                style={{
-                  background: "rgba(34, 197, 94, 0.8)",
-                  color: "white",
-                  padding: "0.5rem 1rem",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: listaCompras.length === 0 ? "not-allowed" : "pointer",
-                  opacity: listaCompras.length === 0 ? 0.5 : 1,
-                  fontSize: "0.9rem",
-                }}
-              >
-                💬 WhatsApp
-              </button>
-
-              <button
-                onClick={gerarSugestaoIA}
-                style={{
-                  background: "rgba(59, 130, 246, 0.8)",
-                  color: "white",
-                  padding: "0.5rem 1rem",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  fontSize: "0.9rem",
-                }}
-              >
-                🧠 IA
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "2rem" }}>
-          {/* Adicionar Produto */}
-          <div
-            style={{
-              background: "rgba(255,255,255,0.1)",
-              padding: "2rem",
-              borderRadius: "16px",
-              backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,255,255,0.1)",
-            }}
-          >
-            <h2
-              style={{
-                fontSize: "1.3rem",
-                fontWeight: "bold",
-                marginBottom: "1.5rem",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-              }}
-            >
-              ➕ Adicionar Produto
-              <span
-                style={{
-                  background: "rgba(59, 130, 246, 0.2)",
-                  color: "#60a5fa",
-                  padding: "0.25rem 0.5rem",
-                  borderRadius: "12px",
-                  fontSize: "0.7rem",
-                  border: "1px solid rgba(59, 130, 246, 0.3)",
-                }}
-              >
-                ⚡ IA
-              </span>
-            </h2>
-
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem" }}>Nome do Produto</label>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <input
-                  type="text"
-                  value={nomeProduto}
-                  onChange={(e) => setNomeProduto(e.target.value)}
-                  placeholder="Ex: Arroz 5kg"
-                  style={{
-                    flex: 1,
-                    padding: "0.75rem",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.2)",
-                    background: "rgba(255,255,255,0.1)",
-                    color: "white",
-                    fontSize: "1rem",
-                  }}
-                  onKeyPress={(e) => e.key === "Enter" && adicionarProduto()}
-                />
-                <button
-                  onClick={iniciarReconhecimentoVoz}
-                  disabled={isListening}
-                  style={{
-                    background: isListening ? "rgba(239, 68, 68, 0.8)" : "rgba(59, 130, 246, 0.8)",
-                    color: "white",
-                    padding: "0.75rem",
-                    border: "none",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontSize: "1rem",
-                  }}
-                >
-                  {isListening ? "🔴" : "🎤"}
-                </button>
-              </div>
-              {isListening && (
-                <div style={{ fontSize: "0.8rem", color: "#60a5fa", marginTop: "0.5rem" }}>
-                  🎤 Escutando... Fale o nome do produto
-                </div>
-              )}
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-              <div>
-                <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem" }}>Quantidade</label>
-                <input
-                  type="number"
-                  value={quantidade}
-                  onChange={(e) => setQuantidade(Number.parseInt(e.target.value) || 1)}
-                  min="1"
-                  style={{
-                    width: "100%",
-                    padding: "0.75rem",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.2)",
-                    background: "rgba(255,255,255,0.1)",
-                    color: "white",
-                    fontSize: "1rem",
-                  }}
-                  onKeyPress={(e) => e.key === "Enter" && adicionarProduto()}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem" }}>Valor (R$)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={valor}
-                  onChange={(e) => setValor(e.target.value)}
-                  placeholder="0,00"
-                  style={{
-                    width: "100%",
-                    padding: "0.75rem",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.2)",
-                    background: "rgba(255,255,255,0.1)",
-                    color: "white",
-                    fontSize: "1rem",
-                  }}
-                  onKeyPress={(e) => e.key === "Enter" && adicionarProduto()}
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={adicionarProduto}
-              disabled={!nomeProduto.trim() || !valor || Number.parseFloat(valor) <= 0}
-              style={{
-                width: "100%",
-                padding: "1rem",
-                background: "linear-gradient(to right, #10b981, #059669)",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
-                fontSize: "1.1rem",
-                fontWeight: "bold",
-                cursor: !nomeProduto.trim() || !valor || Number.parseFloat(valor) <= 0 ? "not-allowed" : "pointer",
-                opacity: !nomeProduto.trim() || !valor || Number.parseFloat(valor) <= 0 ? 0.5 : 1,
-                transition: "all 0.3s ease",
-              }}
-            >
-              ➕ Adicionar à Lista ✨
-            </button>
-          </div>
-
-          {/* Categorias */}
-          <div
-            style={{
-              background: "rgba(255,255,255,0.1)",
-              padding: "2rem",
-              borderRadius: "16px",
-              backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,255,255,0.1)",
-            }}
-          >
-            <h2
-              style={{
-                fontSize: "1.3rem",
-                fontWeight: "bold",
-                marginBottom: "1.5rem",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-              }}
-            >
-              📦 Categorias Inteligentes
-            </h2>
-
-            <div style={{ space: "1rem" }}>
-              {Object.entries(categorias).map(([categoria, produtos]) => (
-                <div
-                  key={categoria}
-                  style={{
-                    background: "rgba(255,255,255,0.05)",
-                    borderRadius: "8px",
-                    marginBottom: "0.5rem",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                  }}
-                >
-                  <button
-                    onClick={() => toggleCategoria(categoria)}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "1rem",
-                      background: "transparent",
-                      border: "none",
-                      color: "white",
-                      cursor: "pointer",
-                      fontSize: "1rem",
-                    }}
-                  >
-                    <span style={{ fontWeight: "500" }}>{categoria}</span>
-                    <span>{categoriasExpandidas.includes(categoria) ? "▲" : "▼"}</span>
-                  </button>
-
-                  {categoriasExpandidas.includes(categoria) && (
-                    <div
-                      style={{
-                        padding: "0 1rem 1rem 1rem",
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-                        gap: "0.5rem",
-                      }}
-                    >
-                      {produtos.map((produto) => (
-                        <button
-                          key={produto}
-                          onClick={() => selecionarProduto(produto)}
-                          style={{
-                            padding: "0.5rem",
-                            background: "rgba(124, 58, 237, 0.1)",
-                            border: "1px solid rgba(124, 58, 237, 0.3)",
-                            borderRadius: "6px",
-                            color: "#a855f7",
-                            cursor: "pointer",
-                            fontSize: "0.9rem",
-                            transition: "all 0.2s ease",
-                          }}
-                          onMouseOver={(e) => {
-                            e.currentTarget.style.background = "rgba(124, 58, 237, 0.2)"
-                            e.currentTarget.style.color = "#c084fc"
-                          }}
-                          onMouseOut={(e) => {
-                            e.currentTarget.style.background = "rgba(124, 58, 237, 0.1)"
-                            e.currentTarget.style.color = "#a855f7"
-                          }}
-                        >
-                          {produto}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Lista de Compras */}
-        <div
-          style={{
-            background: "rgba(255,255,255,0.1)",
-            padding: "2rem",
-            borderRadius: "16px",
-            backdropFilter: "blur(10px)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            marginTop: "2rem",
-          }}
-        >
-          <h2
-            style={{
-              fontSize: "1.3rem",
-              fontWeight: "bold",
-              marginBottom: "1.5rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
-          >
-            🛒 Lista Inteligente
-          </h2>
-
-          {listaCompras.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "3rem", opacity: 0.7 }}>
-              <div style={{ fontSize: "4rem", marginBottom: "1rem" }}>🛒</div>
-              <p style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>Sua lista está esperando</p>
-              <p style={{ fontSize: "0.9rem", color: "#cbd5e1" }}>Adicione produtos e veja a mágica acontecer ✨</p>
-
-              <div
-                style={{ marginTop: "2rem", display: "flex", justifyContent: "center", gap: "1rem", flexWrap: "wrap" }}
-              >
-                <button
-                  onClick={gerarSugestaoIA}
-                  style={{
-                    background: "rgba(59, 130, 246, 0.8)",
-                    color: "white",
-                    padding: "0.5rem 1rem",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  💡 Sugestão IA
-                </button>
-                <button
-                  onClick={iniciarReconhecimentoVoz}
-                  style={{
-                    background: "rgba(124, 58, 237, 0.8)",
-                    color: "white",
-                    padding: "0.5rem 1rem",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  🎤 Falar
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ space: "1rem" }}>
-              {listaCompras.map((produto, index) => (
-                <div
-                  key={produto.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "1rem",
-                    background: "rgba(255,255,255,0.05)",
-                    borderRadius: "8px",
-                    marginBottom: "0.5rem",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    transition: "all 0.3s ease",
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.background = "rgba(255,255,255,0.1)"
-                    e.currentTarget.style.transform = "translateY(-2px)"
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.background = "rgba(255,255,255,0.05)"
-                    e.currentTarget.style.transform = "translateY(0)"
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "1rem", flex: 1 }}>
-                    <div style={{ fontSize: "2rem" }}>{produto.emoji}</div>
-                    <div style={{ flex: 1 }}>
-                      <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "bold" }}>{produto.nome}</h3>
-                      <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.9rem", color: "#cbd5e1" }}>
-                        Qtd: {produto.quantidade} | R$ {produto.valor.toFixed(2)} cada
-                      </p>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.25rem" }}>
-                        <span
-                          style={{
-                            background: "rgba(124, 58, 237, 0.2)",
-                            color: "#a855f7",
-                            padding: "0.125rem 0.5rem",
-                            borderRadius: "12px",
-                            fontSize: "0.7rem",
-                            border: "1px solid rgba(124, 58, 237, 0.3)",
-                          }}
-                        >
-                          {produto.categoria || "Outros"}
-                        </span>
-                        <span style={{ fontSize: "0.7rem", color: "#94a3b8" }}>
-                          {new Date(produto.adicionadoEm).toLocaleTimeString("pt-BR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#10b981" }}>
-                        R$ {produto.total.toFixed(2)}
-                      </div>
-                    </div>
+          {/* Categorias Inteligentes */}
+          <Card className={classes.card}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Categorias Inteligentes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {Object.entries(categoriasExpandidas).map(([categoria, dados]) => (
+                  <div key={categoria} className="border rounded-lg">
                     <button
-                      onClick={() => removerProduto(produto.id)}
-                      style={{
-                        background: "#ef4444",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        padding: "0.5rem",
-                        cursor: "pointer",
-                        fontSize: "1rem",
-                        transition: "all 0.2s ease",
+                      onClick={() => {
+                        setCategoriasExpandidas((prev) =>
+                          prev.includes(categoria) ? prev.filter((c) => c !== categoria) : [...prev, categoria],
+                        )
                       }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.background = "#dc2626"
-                        e.currentTarget.style.transform = "scale(1.1)"
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.background = "#ef4444"
-                        e.currentTarget.style.transform = "scale(1)"
-                      }}
+                      className="w-full flex items-center justify-between p-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg"
                     >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              {/* Total */}
-              <div
-                style={{
-                  borderTop: "2px solid rgba(255,255,255,0.2)",
-                  paddingTop: "1rem",
-                  marginTop: "1rem",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                  <span style={{ fontSize: "1.3rem", fontWeight: "bold" }}>Total Geral:</span>
-                  <span
-                    style={{
-                      background: "linear-gradient(to right, #10b981, #059669)",
-                      color: "white",
-                      padding: "0.5rem 1rem",
-                      borderRadius: "20px",
-                      fontSize: "0.9rem",
-                    }}
-                  >
-                    {listaCompras.length} {listaCompras.length === 1 ? "item" : "itens"}
-                  </span>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <span style={{ fontSize: "2rem", fontWeight: "bold", color: "#10b981" }}>
-                    R$ {totalGasto.toFixed(2)}
-                  </span>
-                  {orcamento > 0 && (
-                    <div style={{ fontSize: "0.8rem", color: "#cbd5e1" }}>
-                      {((totalGasto / orcamento) * 100).toFixed(1)}% do orçamento
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Modal de Estatísticas */}
-        {showEstatisticas && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 50,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "rgba(0,0,0,0.5)",
-              backdropFilter: "blur(10px)",
-            }}
-          >
-            <div
-              style={{
-                background: "rgba(30, 41, 59, 0.95)",
-                padding: "2rem",
-                borderRadius: "16px",
-                maxWidth: "600px",
-                width: "90%",
-                maxHeight: "80vh",
-                overflow: "auto",
-                border: "1px solid rgba(255,255,255,0.1)",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "2rem",
-                }}
-              >
-                <h3
-                  style={{
-                    fontSize: "1.5rem",
-                    fontWeight: "bold",
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    margin: 0,
-                  }}
-                >
-                  📊 Estatísticas & Conquistas
-                </h3>
-                <button
-                  onClick={() => setShowEstatisticas(false)}
-                  style={{
-                    background: "rgba(239, 68, 68, 0.8)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    padding: "0.5rem",
-                    cursor: "pointer",
-                    fontSize: "1rem",
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Estatísticas Gerais */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-                  gap: "1rem",
-                  marginBottom: "2rem",
-                }}
-              >
-                <div
-                  style={{
-                    background: "rgba(59, 130, 246, 0.1)",
-                    padding: "1rem",
-                    borderRadius: "8px",
-                    textAlign: "center",
-                    border: "1px solid rgba(59, 130, 246, 0.3)",
-                  }}
-                >
-                  <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#60a5fa" }}>{listaCompras.length}</div>
-                  <div style={{ fontSize: "0.8rem", color: "#93c5fd" }}>Total de Itens</div>
-                </div>
-
-                <div
-                  style={{
-                    background: "rgba(16, 185, 129, 0.1)",
-                    padding: "1rem",
-                    borderRadius: "8px",
-                    textAlign: "center",
-                    border: "1px solid rgba(16, 185, 129, 0.3)",
-                  }}
-                >
-                  <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#34d399" }}>
-                    R$ {listaCompras.length > 0 ? (totalGasto / listaCompras.length).toFixed(2) : "0.00"}
-                  </div>
-                  <div style={{ fontSize: "0.8rem", color: "#6ee7b7" }}>Ticket Médio</div>
-                </div>
-
-                <div
-                  style={{
-                    background: "rgba(124, 58, 237, 0.1)",
-                    padding: "1rem",
-                    borderRadius: "8px",
-                    textAlign: "center",
-                    border: "1px solid rgba(124, 58, 237, 0.3)",
-                  }}
-                >
-                  <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#a855f7" }}>
-                    {formatarTempo(tempoSessao)}
-                  </div>
-                  <div style={{ fontSize: "0.8rem", color: "#c084fc" }}>Tempo de Sessão</div>
-                </div>
-              </div>
-
-              {/* Conquistas */}
-              <h4 style={{ fontSize: "1.2rem", fontWeight: "bold", marginBottom: "1rem", color: "white" }}>
-                🏆 Conquistas
-              </h4>
-              <div style={{ space: "1rem" }}>
-                {conquistasDesbloqueadas.map((conquista) => (
-                  <div
-                    key={conquista.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "1rem",
-                      padding: "1rem",
-                      background: conquista.desbloqueada ? "rgba(245, 158, 11, 0.1)" : "rgba(255,255,255,0.05)",
-                      borderRadius: "8px",
-                      marginBottom: "0.5rem",
-                      border: conquista.desbloqueada
-                        ? "1px solid rgba(245, 158, 11, 0.3)"
-                        : "1px solid rgba(255,255,255,0.1)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "2rem",
-                        filter: conquista.desbloqueada ? "none" : "grayscale(100%)",
-                      }}
-                    >
-                      {conquista.icone}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <h5
-                        style={{
-                          margin: 0,
-                          fontSize: "1rem",
-                          fontWeight: "bold",
-                          color: conquista.desbloqueada ? "#f59e0b" : "white",
-                        }}
-                      >
-                        {conquista.titulo}
-                      </h5>
-                      <p
-                        style={{
-                          margin: "0.25rem 0 0 0",
-                          fontSize: "0.8rem",
-                          color: "#cbd5e1",
-                        }}
-                      >
-                        {conquista.descricao}
-                      </p>
-                      {conquista.progresso !== undefined && conquista.meta && (
-                        <div style={{ marginTop: "0.5rem" }}>
-                          <div
-                            style={{
-                              width: "100%",
-                              height: "4px",
-                              background: "rgba(255,255,255,0.1)",
-                              borderRadius: "2px",
-                              overflow: "hidden",
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: `${(conquista.progresso / conquista.meta) * 100}%`,
-                                height: "100%",
-                                background: "linear-gradient(to right, #f59e0b, #d97706)",
-                                transition: "width 0.3s ease",
-                              }}
-                            />
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "0.7rem",
-                              color: "#94a3b8",
-                              marginTop: "0.25rem",
-                            }}
-                          >
-                            {conquista.progresso}/{conquista.meta}
-                          </div>
-                        </div>
+                      <span className="font-medium">{categoria}</span>
+                      {categoriasExpandidas.includes(categoria) ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
                       )}
-                    </div>
-                    {conquista.desbloqueada && <div style={{ color: "#f59e0b", fontSize: "1.2rem" }}>✓</div>}
+                    </button>
+
+                    {categoriasExpandidas.includes(categoria) && (
+                      <div className="p-3 pt-0 grid grid-cols-2 gap-2">
+                        {dados.itens.slice(0, 8).map((item) => (
+                          <button
+                            key={item}
+                            onClick={() => {
+                              setNomeProduto(item)
+                              playSound("info")
+                            }}
+                            className="text-left p-2 text-sm rounded border hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                          >
+                            {item}
+                          </button>
+                        ))}
+                        {dados.itens.length > 8 && (
+                          <Dialog open={showNovoItem} onOpenChange={setShowNovoItem}>
+                            <DialogTrigger asChild>
+                              <button className="text-left p-2 text-sm rounded border border-dashed hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-slate-500">
+                                + Ver mais ({dados.itens.length - 8})
+                              </button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>{categoria}</DialogTitle>
+                              </DialogHeader>
+                              <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
+                                {dados.itens.map((item) => (
+                                  <button
+                                    key={item}
+                                    onClick={() => {
+                                      setNomeProduto(item)
+                                      setShowNovoItem(false)
+                                      playSound("info")
+                                    }}
+                                    className="text-left p-2 text-sm rounded border hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                  >
+                                    {item}
+                                  </button>
+                                ))}
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </div>
 
-              <div style={{ textAlign: "center", marginTop: "2rem" }}>
-                <button
-                  onClick={() => setShowEstatisticas(false)}
-                  style={{
-                    background: "linear-gradient(to right, #124, 58, 237, #3b82f6)",
-                    color: "white",
-                    padding: "0.75rem 1.5rem",
-                    border: "none",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontSize: "1rem",
-                  }}
-                >
-                  👁️ Entendi!
-                </button>
+        {/* Lista de Produtos */}
+        <Card className={classes.card}>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5" />
+                Lista de Compras
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Buscar produto..."
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  className="w-48"
+                />
+                <Select value={categoriaFiltro} onValueChange={setCategoriaFiltro}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas</SelectItem>
+                    {Object.keys(categoriasExpandidas).map((categoria) => (
+                      <SelectItem key={categoria} value={categoria}>
+                        {categoria.split(" ")[0]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {listaAtual.produtos.length === 0 ? (
+              <div className="text-center py-12">
+                <ShoppingCart className="h-16 w-16 mx-auto text-slate-400 mb-4" />
+                <h3 className="text-lg font-medium mb-2">Lista vazia</h3>
+                <p className="text-slate-500 mb-4">Adicione produtos para começar sua lista inteligente</p>
+                <div className="flex justify-center gap-2">
+                  <Button onClick={iniciarReconhecimentoVoz} variant="outline">
+                    <Mic className="mr-2 h-4 w-4" />
+                    Usar Voz
+                  </Button>
+                  <Button onClick={() => setNomeProduto("Arroz Integral")} variant="outline">
+                    <Zap className="mr-2 h-4 w-4" />
+                    Sugestão IA
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {listaAtual.produtos
+                  .filter(
+                    (produto) =>
+                      (categoriaFiltro === "todas" || produto.categoria === categoriaFiltro) &&
+                      (busca === "" || produto.nome.toLowerCase().includes(busca.toLowerCase())),
+                  )
+                  .map((produto, index) => (
+                    <div
+                      key={produto.id}
+                      className={`flex items-center justify-between p-4 rounded-lg border ${tema === "dark" ? "bg-slate-800/50 border-slate-700" : "bg-white border-slate-200"} hover:shadow-md transition-all duration-200`}
+                    >
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className="text-2xl">{produto.emoji}</div>
+                        <div className="flex-1">
+                          <h3 className="font-medium">{produto.nome}</h3>
+                          <div className="flex items-center gap-4 text-sm text-slate-500 mt-1">
+                            <span>Qtd: {produto.quantidade}</span>
+                            <span>{formatarMoeda(produto.valor)} cada</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {produto.categoria?.split(" ")[0]}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
+                            <Clock className="h-3 w-3" />
+                            <span>
+                              {produto.adicionadoEm.toLocaleTimeString("pt-BR", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            {produto.adicionadoPor && (
+                              <>
+                                <span>•</span>
+                                <span>por {produto.adicionadoPor}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-green-400">{formatarMoeda(produto.total)}</div>
+                          <div className="text-xs text-slate-500">
+                            {produto.quantidade} × {formatarMoeda(produto.valor)}
+                          </div>
+                        </div>
+
+                        <Button
+                          onClick={() => removerProduto(produto.id)}
+                          variant="outline"
+                          size="icon"
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+
+                {/* Total */}
+                <div className={`border-t pt-4 mt-6 ${tema === "dark" ? "border-slate-700" : "border-slate-200"}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <h3 className="text-xl font-bold">Total Geral:</h3>
+                      <Badge variant="secondary" className="text-sm">
+                        {listaAtual.produtos.length} {listaAtual.produtos.length === 1 ? "item" : "itens"}
+                      </Badge>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-bold text-green-400">{formatarMoeda(listaAtual.totalGasto)}</div>
+                      {listaAtual.orcamento > 0 && (
+                        <div className="text-sm text-slate-500">
+                          {((listaAtual.totalGasto / listaAtual.orcamento) * 100).toFixed(1)}% do orçamento
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Modal de Comparação de Preços */}
+        <Dialog open={showComparacao} onOpenChange={setShowComparacao}>
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Comparação Inteligente de Preços
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-6">
+              {/* Resumo da Comparação */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <div className="text-2xl font-bold text-green-400">
+                      {formatarMoeda(comparacaoPrecos.reduce((acc, comp) => acc + comp.economia, 0))}
+                    </div>
+                    <div className="text-sm text-slate-500">Economia Possível</div>
+                    <TrendingDown className="h-4 w-4 text-green-400 mx-auto mt-1" />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <div className="text-2xl font-bold text-blue-400">
+                      {comparacaoPrecos.filter((comp) => comp.disponivel).length}
+                    </div>
+                    <div className="text-sm text-slate-500">Produtos Encontrados</div>
+                    <Search className="h-4 w-4 text-blue-400 mx-auto mt-1" />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <div className="text-2xl font-bold text-purple-400">
+                      {Math.round(
+                        comparacaoPrecos.reduce((acc, comp) => acc + comp.percentualEconomia, 0) /
+                          comparacaoPrecos.length,
+                      )}
+                      %
+                    </div>
+                    <div className="text-sm text-slate-500">Economia Média</div>
+                    <Percent className="h-4 w-4 text-purple-400 mx-auto mt-1" />
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Lista de Comparações */}
+              <div className="space-y-3">
+                {comparacaoPrecos.map((comp, index) => (
+                  <Card key={index} className={comp.disponivel ? "" : "opacity-50"}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-medium">{comp.produto}</h3>
+                          <div className="flex items-center gap-4 text-sm text-slate-500 mt-1">
+                            <span>Seu preço: {formatarMoeda(comp.precoAtual)}</span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Store className="h-3 w-3" />
+                              {comp.loja}: {formatarMoeda(comp.melhorPreco)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <div
+                              className={`text-lg font-bold ${comp.economia > 0 ? "text-green-400" : "text-slate-400"}`}
+                            >
+                              {comp.economia > 0 ? "-" : ""}
+                              {formatarMoeda(comp.economia)}
+                            </div>
+                            <div className="text-xs text-slate-500">{comp.percentualEconomia.toFixed(1)}% economia</div>
+                          </div>
+
+                          <Badge
+                            variant={comp.disponivel ? (comp.economia > 0 ? "default" : "secondary") : "destructive"}
+                            className="flex items-center gap-1"
+                          >
+                            {comp.disponivel ? (
+                              comp.economia > 0 ? (
+                                <>
+                                  <TrendingDown className="h-3 w-3" />
+                                  Economia
+                                </>
+                              ) : (
+                                <>
+                                  <ArrowUpDown className="h-3 w-3" />
+                                  Igual
+                                </>
+                              )
+                            ) : (
+                              <>
+                                <X className="h-3 w-3" />
+                                Indisponível
+                              </>
+                            )}
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              <div className="flex justify-center gap-2">
+                <Button onClick={() => setShowComparacao(false)}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  Entendi!
+                </Button>
+                <Button variant="outline" onClick={buscarComparacaoPrecos}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Atualizar
+                </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Footer */}
+        <div className={`mt-8 pt-6 border-t ${tema === "dark" ? "border-slate-700" : "border-slate-200"} text-center`}>
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4 text-sm text-slate-500">
+              <span>⚡ Powered by IA</span>
+              <span>•</span>
+              <span>🔒 Dados Seguros</span>
+              <span>•</span>
+              <span>📱 Responsivo</span>
+            </div>
+
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <span>Sessão: {formatarTempo(tempoSessao)}</span>
+              <span>•</span>
+              <span>
+                {dispositivoAtual === "mobile" ? (
+                  <Smartphone className="w-4 h-4 inline" />
+                ) : dispositivoAtual === "tablet" ? (
+                  <Tablet className="w-4 h-4 inline" />
+                ) : (
+                  <Monitor className="w-4 h-4 inline" />
+                )}
+                {dispositivoAtual}
+              </span>
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )
